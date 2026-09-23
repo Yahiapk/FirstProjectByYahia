@@ -16,7 +16,7 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, Cal
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 ADMIN_ID = int(os.environ.get("ADMIN_ID", "1283009799"))
 RAPIDAPI_KEY = os.environ.get("RAPIDAPI_KEY")
-REMOVEBG_KEY = os.environ.get("REMOVEBG_KEY")  # نضيف مفتاحك المجاني هنا
+REMOVEBG_KEY = os.environ.get("REMOVEBG_KEY")
 
 OXFORD_PDF_URL = "https://drive.google.com/uc?export=download&id=1GqE_PbV4GMUMo6B99sF3v4KtDlErCq7I"
 
@@ -26,7 +26,6 @@ user_state = {}
 
 DEV_SIGNATURE = "💻 Dev: YahiaFadhel"
 
-# القائمة الرئيسية بعد حذف الملصقات
 def get_main_menu():
     keyboard = [
         [KeyboardButton("📥 تنزيل الفيديوهات والصوتيات (يوتيوب، تيكتوك، انستا، بينترست)")],
@@ -99,12 +98,11 @@ def get_prayer_cities_keyboard():
         keyboard.append(row)
     return InlineKeyboardMarkup(keyboard)
 
-# دالة تحويل الوقت من 24 ساعة إلى 12 ساعة (مثلاً 18:00 يصير 6:00 م)
 def format_time_12h(time_str):
     try:
-        clean_time = time_str.split(" ")[0] # أخذ الوقت الصافي بدون أي إضافات
+        clean_time = time_str.split(" ")[0]
         t = datetime.strptime(clean_time, "%H:%M")
-        formatted = t.strftime("%I:%M").lstrip('0') # تحويل وتجريد الصفر الأولي
+        formatted = t.strftime("%I:%M").lstrip('0')
         period = "ص" if t.hour < 12 else "م"
         return f"{formatted} {period}"
     except:
@@ -329,7 +327,6 @@ def convert_image_to_ascii(image_bytes):
     except:
         return None
 
-# دالة تفريغ الصور المحدثة
 def remove_background_api(image_bytes):
     key = REMOVEBG_KEY or "free_demo"
     try:
@@ -400,7 +397,7 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
         await context.bot.edit_message_text(f"🎬 *اختر دقة الفيديو المطلوب:*\n\n{DEV_SIGNATURE}", chat_id=chat_id, message_id=query.message.message_id, reply_markup=get_video_quality_keyboard(), parse_mode='Markdown')
 
     elif data == "type_audio":
-        await context.bot.edit_message_text(f"🎵 *اختر جودة الصوت المطلوب:*\n\n{DEV_SIGNATURE}", chat_id=chat_id, message_id=query.message.message_id, reply_markup=get_audio_quality_keyboard(), parse_mode='Markdown')
+        await context.bot.edit_message_text(f"🎵 *اختر جودة الصوت المطلوب:*\n\n{DEV_SIGNATURE}", chat_id=chat_id, message_id=query.message.message_id, parse_mode='Markdown')
 
     elif data.startswith("q_"):
         req = user_requests.get(chat_id)
