@@ -5,7 +5,7 @@ import string
 import time
 import asyncio
 import requests
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 from io import BytesIO
 import yt_dlp
 
@@ -27,6 +27,10 @@ DEV_SIGNATURE = "💻 Dev: YahiaFadhel"
 def get_main_menu():
     keyboard = [
         [KeyboardButton("📥 تنزيل الفيديوهات والصوتيات (يوتيوب، تيكتوك، انستا، بينترست)")],
+        [KeyboardButton("🎵 معرفة اسم الأغنية (من البصمة/الصوت)")],
+        [KeyboardButton("🖼 إزالة خلفية الصورة (تفريغ)")],
+        [KeyboardButton("🔤 تحويل النص إلى ملصق (Sticker)")],
+        [KeyboardButton("⏰ مواقيت الصلاة والأذكار (جعفري)")],
         [KeyboardButton("🔍 صيد يوزرات تيليجرام الحقيقي (صاروخي)")],
         [KeyboardButton("🤖 المساعد الذكي (أسئلة واستفسارات)")],
         [KeyboardButton("📚 ملف أوكسفورد")],
@@ -72,6 +76,19 @@ def get_hunt_types_keyboard():
         [InlineKeyboardButton("🎯 صيغة: x_1x1", callback_data="hunt_type_5"), InlineKeyboardButton("🎯 صيغة: x_x11", callback_data="hunt_type_6")],
         [InlineKeyboardButton("🎯 صيغة: x_xxx", callback_data="hunt_type_7")]
     ]
+    return InlineKeyboardMarkup(keyboard)
+
+def get_prayer_cities_keyboard():
+    cities = ["بغداد", "النجف", "كربلاء", "البصرة", "أربيل", "الموصل", "الحلة", "الناصرية", "العمارة", "الديوانية", "الكوت", "السماوة", "كركوك", "ديالى", "الأنبار", "دهوك", "السليمانية"]
+    keyboard = []
+    row = []
+    for city in cities:
+        row.append(InlineKeyboardButton(city, callback_data=f"pray_{city}"))
+        if len(row) == 3:
+            keyboard.append(row)
+            row = []
+    if row:
+        keyboard.append(row)
     return InlineKeyboardMarkup(keyboard)
 
 def generate_random_matrix():
@@ -129,30 +146,29 @@ def build_sword_with_info(username, attempts, elapsed_time):
                / /  \\ \\
               / /    \\ \\
              / /  /\\  \\ \\
-            / /  /  \\  \\ \\
-           / /  /    \\  \\ \\
-          / /  /      \\  \\ \\
-         | |  |        |  | |
-         | |  |        |  | |
-         | | [SUCCESS] |  | |
-         | |           |  | |
-         | |{user_str}| |
-         | |           |  | |
-         | |{att_str}| |
-         | |           |  | |
-         | |{time_str}| |
-         | |           |  | |
-         | |{dev_str}| |
-         | |           |  | |
-         | |___________|  | |
-        /                   \\
-       /____   _______   ____\\
-            | |       | |
-            | |       | |
-           [___________]
-                |   |
-                |   |
-               (_____)
+            / /  /    \\  \\ \\
+           / /  /      \\  \\ \\
+          | |  |        |  | |
+          | |  |        |  | |
+          | | [SUCCESS] |  | |
+          | |           |  | |
+          | |{user_str}| |
+          | |           |  | |
+          | |{att_str}| |
+          | |           |  | |
+          | |{time_str}| |
+          | |           |  | |
+          | |{dev_str}| |
+          | |           |  | |
+          | |___________|  | |
+         /                   \\
+        /____   _______   ____\\
+             | |       | |
+             | |       | |
+            [___________]
+                 |   |
+                 |   |
+                (_____)
 ```"""
     return sword_art
 
@@ -346,6 +362,69 @@ def ask_ai_assistant(prompt):
         pass
     return "💡 أهلاً بك! أنا مساعدك الذكي، أستطيع إجابتك عن أي سؤال واستفسار تقني أو عام. أرسل سؤالك بوضوح وسأجيبك فوراً!"
 
+def remove_background_api(image_bytes):
+    try:
+        res = requests.post("https://api.remove.bg/v1.0/removebg", files={'image_file': image_bytes}, data={'size': 'auto'}, headers={'X-Api-Key': 'free_demo'}, timeout=15)
+        if res.status_code == 200:
+            return res.content
+    except:
+        pass
+    return None
+
+def create_text_sticker(text):
+    try:
+        img = Image.new('RGBA', (512, 512), color=(0, 0, 0, 0))
+        d = ImageDraw.Draw(img)
+        
+        d.rounded_rectangle([20, 150, 492, 360], radius=30, fill=(30, 30, 46, 230), outline=(137, 180, 250), width=4)
+        
+        try:
+            font = ImageFont.truetype("arial.ttf", 36)
+        except:
+            font = ImageFont.load_default()
+            
+        d.text((256, 255), text, fill=(255, 255, 255), font=font, anchor="mm")
+        
+        bio = BytesIO()
+        bio.name = 'sticker.webp'
+        img.save(bio, 'WEBP')
+        bio.seek(0)
+        return bio
+    except:
+        return None
+
+def get_prayer_times_jaafari(city, country="Iraq"):
+    try:
+        # method=0 يعتمد الحساب الجعفري (Institute of Geophysics, University of Tehran)
+        url = f"http://api.aladhan.com/v1/timingsByCity?city={city}&country={country}&method=0"
+        res = requests.get(url, timeout=5)
+        if res.status_code == 200:
+            timings = res.json()['data']['timings']
+            return timings
+    except:
+        pass
+    return None
+
+def recognize_song_audd(audio_bytes):
+    try:
+        data = {
+            'api_token': 'test',
+            'return': 'apple_music,spotify',
+        }
+        files = {
+            'file': audio_bytes,
+        }
+        res = requests.post('https://api.audd.io/', data=data, files=files, timeout=10)
+        if res.status_code == 200:
+            result = res.json()
+            if result.get('status') == 'success' and result.get('result'):
+                title = result['result'].get('title')
+                artist = result['result'].get('artist')
+                return f"🎵 *اسم الأغنية:* {title}\n👤 *الفنان:* {artist}"
+    except:
+        pass
+    return None
+
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         f"🌟 *أهلاً بك يا غالي في بوت الخدمات الصاروخي* 🚀\n\nاختر الخدمة المطلوبة من الأزرار بالأسفل:\n\n{DEV_SIGNATURE}",
@@ -390,6 +469,26 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
                 await context.bot.send_message(chat_id, f"⚠️ *تعذر التحميل، تأكد من صحة الرابط أو جرب رابطاً آخر.*\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
             user_requests.pop(chat_id, None)
 
+    elif data.startswith("pray_"):
+        city = data.split("_")[1]
+        timings = get_prayer_times_jaafari(city, country="Iraq")
+        if timings:
+            text = (
+                f"🕌 *مواقيت الصلاة الشرعية (المذهب الجعفري) - {city}:*\n\n"
+                f"🌅 *أذان الفجر:* `{timings['Fajr']}`\n"
+                f"☀️ *الشروق:* `{timings['Sunrise']}`\n"
+                f"☀️ *أذان الظهر:* `{timings['Dhuhr']}`\n"
+                f"🌤 *أذان العصر:* `{timings['Asr']}`\n"
+                f"🌆 *أذان المغرب الشرعي:* `{timings['Maghrib']}`\n"
+                f"🌌 *أذان العشاء:* `{timings['Isha']}`\n"
+                f"🌙 *منتصف الليل الشرعي:* `{timings['Midnight']}`\n\n"
+                f"🤲 *من الأذكار:* (اللَّهُمَّ صَلِّ عَلَى مُحَمَّدٍ وآلِ مُحَمَّدٍ)\n\n"
+                f"{DEV_SIGNATURE}"
+            )
+            await context.bot.send_message(chat_id, text, parse_mode='Markdown')
+        else:
+            await context.bot.send_message(chat_id, "⚠️ تعذر جلب مواقيت الصلاة حالياً، حاول مجدداً.", parse_mode='Markdown')
+
 async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     text = update.message.text or ""
@@ -415,6 +514,30 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
     elif text == "🎨 تحويل الصورة إلى رسم بالنقاط":
         user_state[chat_id] = "ascii"
         await update.message.reply_text(f"🎨 *أرسل أي صورة الآن لتحويلها إلى رسم فني بالنقاط:*\n\n{DEV_SIGNATURE}", reply_markup=get_main_menu(), parse_mode='Markdown')
+        return
+    elif text == "🎵 معرفة اسم الأغنية (من البصمة/الصوت)":
+        user_state[chat_id] = "shazam"
+        await update.message.reply_text(f"🎵 *أرسل البصمة الصوتية أو الملف الصوتي الآن لمعرفة اسمه:* \n\n{DEV_SIGNATURE}", parse_mode='Markdown')
+        return
+    elif text == "🖼 إزالة خلفية الصورة (تفريغ)":
+        user_state[chat_id] = "remove_bg"
+        await update.message.reply_text(f"🖼 *أرسل الصورة المراد إزالة خلفيتها الآن:*\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
+        return
+    elif text == "🔤 تحويل النص إلى ملصق (Sticker)":
+        user_state[chat_id] = "text_sticker"
+        await update.message.reply_text(f"🔤 *أرسل النص المطلوب تحويله إلى ملصق:*\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
+        return
+    elif text.startswith("⏰ مواقيت الصلاة والأذكار"):
+        await update.message.reply_text(f"🕌 *اختر محافظتك لمشاهدة مواقيت الصلاة اليومية (حسب التوقيت الشرعي الجعفري):*\n\n{DEV_SIGNATURE}", reply_markup=get_prayer_cities_keyboard(), parse_mode='Markdown')
+        return
+
+    if user_state.get(chat_id) == "text_sticker":
+        user_state.pop(chat_id, None)
+        sticker_bio = create_text_sticker(text)
+        if sticker_bio:
+            await update.message.reply_sticker(sticker=sticker_bio)
+        else:
+            await update.message.reply_text("⚠️ تعذر إنشاء الملصق، حاول مجدداً.")
         return
 
     if user_state.get(chat_id) == "ai_chat":
@@ -458,6 +581,24 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
     await update.message.reply_text(f"يرجى استخدام الأزرار بالأسفل لتنفيذ الخدمات المتاحة 🚀\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
 
 async def handle_photo_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    mode = user_state.get(chat_id)
+
+    if mode == "remove_bg":
+        user_state.pop(chat_id, None)
+        await update.message.reply_text(f"⏳ *جاري تفريغ وإزالة خلفية الصورة...*\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
+        try:
+            photo_file = await update.message.photo[-1].get_file()
+            downloaded_bytes = await photo_file.download_as_bytearray()
+            out_bytes = remove_background_api(bytes(downloaded_bytes))
+            if out_bytes:
+                await context.bot.send_document(chat_id, document=BytesIO(out_bytes), filename="no_bg.png", caption=f"🖼 *تم تفريغ الصورة بنجاح!*\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
+            else:
+                await update.message.reply_text("⚠️ تعذر إزالة الخلفية، جرب صورة أخرى.")
+        except Exception as e:
+            await update.message.reply_text("⚠️ حدث خطأ في معالجة الصورة.")
+        return
+
     try:
         await update.message.reply_text(f"🎨 *جاري تحويل الصورة إلى رسم بالنقاط...*\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
         photo_file = await update.message.photo[-1].get_file()
@@ -467,6 +608,25 @@ async def handle_photo_messages(update: Update, context: ContextTypes.DEFAULT_TY
             await update.message.reply_text(f"✨ *النتيجة:*\n\n{res}\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
     except:
         await update.message.reply_text(f"⚠️ حدث خطأ بالمعالجة.\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
+
+async def handle_audio_voice_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    await update.message.reply_text(f"🔍 *جاري البحث عن اسم الأغنية...*\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
+    
+    try:
+        audio_obj = update.message.voice or update.message.audio
+        if audio_obj:
+            file = await audio_obj.get_file()
+            audio_bytes = await file.download_as_bytearray()
+            res = recognize_song_audd(bytes(audio_bytes))
+            if res:
+                yt_query = res.replace("🎵 *اسم الأغنية:* ", "").replace("\n👤 *الفنان:* ", " ")
+                search_url = f"https://www.youtube.com/results?search_query={yt_query.replace(' ', '+')}"
+                await update.message.reply_text(f"{res}\n\n🔗 [ابحث عنها في يوتيوب]({search_url})\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
+            else:
+                await update.message.reply_text(f"⚠️ لم أستطع التعرف على الأغنية، تأكد من وضوح الصوت وخلوه من الضوضاء.\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
+    except Exception as e:
+        await update.message.reply_text("⚠️ حدث خطأ أثناء المعالجة.")
 
 if __name__ == '__main__':
     if not TELEGRAM_TOKEN:
@@ -478,6 +638,7 @@ if __name__ == '__main__':
     app.add_handler(CommandHandler('start', start_command))
     app.add_handler(CallbackQueryHandler(handle_callback_query))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo_messages))
+    app.add_handler(MessageHandler(filters.VOICE | filters.AUDIO, handle_audio_voice_messages))
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_text_messages))
 
     print("Bot is running perfectly...")
