@@ -14,11 +14,8 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, Cal
 
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 ADMIN_ID = int(os.environ.get("ADMIN_ID", "1283009799"))
-
-# سحب المفتاح من متغيرات البيئة بأمان تام (بدون كشفه للكود)
 RAPIDAPI_KEY = os.environ.get("RAPIDAPI_KEY")
 
-# رابط ملف أوكسفورد
 OXFORD_PDF_URL = "https://drive.google.com/uc?export=download&id=1GqE_PbV4GMUMo6B99sF3v4KtDlErCq7I"
 
 user_requests = {}
@@ -87,19 +84,19 @@ def generate_target_username(htype):
     x1, x2, x3, x4 = random.choice(letters), random.choice(letters), random.choice(letters), random.choice(letters)
     d1, d2 = random.choice(digits), random.choice(digits)
 
-    if htype == "1":    # x1_1x
+    if htype == "1":
         return f"{x1}{d1}_{d2}{x2}"
-    elif htype == "2":  # xx_11
+    elif htype == "2":
         return f"{x1}{x2}_{d1}{d2}"
-    elif htype == "3":  # x1x1x
+    elif htype == "3":
         return f"{x1}{d1}{x2}{d2}{x3}"
-    elif htype == "4":  # xx11x
+    elif htype == "4":
         return f"{x1}{x2}{d1}{d2}{x3}"
-    elif htype == "5":  # x_1x1
+    elif htype == "5":
         return f"{x1}_{d1}{x2}{d2}"
-    elif htype == "6":  # x_x11
+    elif htype == "6":
         return f"{x1}_{x2}{d1}{d2}"
-    elif htype == "7":  # x_xxx
+    elif htype == "7":
         return f"{x1}_{x2}{x3}{x4}"
     return f"{x1}{d1}_{d2}{x2}"
 
@@ -227,13 +224,13 @@ def download_youtube_rapidapi(url, is_audio):
         "x-rapidapi-host": "youtube-media-downloader.p.rapidapi.com"
     }
     
-    video_id_match = re.search(r'(?:v=|\/)([0-9A-Za-z_-]{11})', url)
+    video_id_match = re.search(r'(?:v=|\/|shorts\/)([0-9A-Za-z_-]{11})', url)
     if not video_id_match:
         return None
     video_id = video_id_match.group(1)
 
     try:
-        res = requests.get(api_url, headers=headers, params={"videoId": video_id}, timeout=15)
+        res = requests.get(api_url, headers=headers, params={"videoId": video_id}, timeout=10)
         if res.status_code == 200:
             data = res.json()
             download_link = None
@@ -260,11 +257,13 @@ def download_youtube_rapidapi(url, is_audio):
     return None
 
 def download_media_direct(url, is_audio, quality="best"):
+    # المحاولة الأولى عبر الـ API
     if "youtube.com" in url or "youtu.be" in url:
         yt_file = download_youtube_rapidapi(url, is_audio)
         if yt_file and os.path.exists(yt_file):
             return yt_file
 
+    # المحاولة الثانية (أو للمواقع الأخرى) عبر yt-dlp الاحتياطي المحسّن
     filename = f"dl_{int(time.time())}_{random.randint(1000,9999)}"
     ydl_opts = {
         'outtmpl': f'{filename}.%(ext)s',
@@ -272,26 +271,38 @@ def download_media_direct(url, is_audio, quality="best"):
         'no_warnings': True,
         'nocheckcertificate': True,
         'geo_bypass': True,
-        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
     }
 
     if is_audio:
         ydl_opts['format'] = 'bestaudio/best'
+        ydl_opts['postprocessors'] = [{
+            'key': 'FFmpegExtractAudio',
+            'preferredcodec': 'mp3',
+            'preferredquality': '192',
+        }]
     else:
-        ydl_opts['format'] = 'b/best'
+        # صيغة مضمونة للصوت والصورة معاً
+        ydl_opts['format'] = 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best'
 
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(url, download=True)
-        if 'entries' in info and len(info['entries']) > 0:
-            info = info['entries'][0]
-        filename_actual = ydl.prepare_filename(info)
-        
-        if not os.path.exists(filename_actual):
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            if 'entries' in info and len(info['entries']) > 0:
+                info = info['entries'][0]
+            filename_actual = ydl.prepare_filename(info)
+            
+            if os.path.exists(filename_actual):
+                return filename_actual
+
             base = os.path.splitext(filename_actual)[0]
             for ext in ['.mp4', '.mkv', '.webm', '.mp3', '.m4a', '.jpg', '.png', '.webp']:
                 if os.path.exists(base + ext):
                     return base + ext
-        return filename_actual
+    except Exception as e:
+        print(f"yt-dlp fallback error: {e}")
+
+    return None
 
 async def process_media_download(context: ContextTypes.DEFAULT_TYPE, chat_id: int, url: str, is_audio: bool, quality: str = "best"):
     try:
