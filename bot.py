@@ -12,7 +12,6 @@ import yt_dlp
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
 
-# سحب التوكين بأمان من متغيرات البيئة بـ Railway
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 ADMIN_ID = int(os.environ.get("ADMIN_ID", "1283009799"))
 
@@ -154,7 +153,7 @@ async def hunt_username_task(context: ContextTypes.DEFAULT_TYPE, chat_id: int, m
     except:
         await context.bot.send_message(chat_id, result_text, reply_markup=get_hunt_types_keyboard(), parse_mode='Markdown')
 
-# نظام التنزيل الخرافي الجديد مع تخطي الحظر
+# نظام تحميل مباشر وموثوق يمنع أخطاء السيرفر
 def download_media_direct(url, is_audio, quality="best"):
     filename = f"dl_{int(time.time())}_{random.randint(1000,9999)}"
     
@@ -163,22 +162,21 @@ def download_media_direct(url, is_audio, quality="best"):
         'quiet': True,
         'no_warnings': True,
         'nocheckcertificate': True,
-        'ignoreerrors': False,
         'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
     }
     
     if is_audio:
         ydl_opts['format'] = 'bestaudio/best'
     else:
-        # صيغ مرنة تمنع فشل التحميل
+        # استخدام أفضل صيغة مدمجة مسبقاً لتجنب الفشل
         if quality == "360":
-            ydl_opts['format'] = 'bestvideo[height<=360]+bestaudio/best[height<=360]/best[height<=360]/best'
+            ydl_opts['format'] = 'b[height<=360]/b'
         elif quality == "720":
-            ydl_opts['format'] = 'bestvideo[height<=720]+bestaudio/best[height<=720]/best[height<=720]/best'
+            ydl_opts['format'] = 'b[height<=720]/b'
         elif quality == "1080":
-            ydl_opts['format'] = 'bestvideo[height<=1080]+bestaudio/best[height<=1080]/best[height<=1080]/best'
+            ydl_opts['format'] = 'b[height<=1080]/b'
         else:
-            ydl_opts['format'] = 'bestvideo+bestaudio/best'
+            ydl_opts['format'] = 'b/best'
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=True)
@@ -186,7 +184,6 @@ def download_media_direct(url, is_audio, quality="best"):
             info = info['entries'][0]
         filename_actual = ydl.prepare_filename(info)
         
-        # التأكد من وجود الملف أو صيغته المحولة
         if not os.path.exists(filename_actual):
             base = os.path.splitext(filename_actual)[0]
             for ext in ['.mp4', '.mkv', '.webm', '.mp3', '.m4a', '.jpg', '.png', '.webp']:
@@ -273,7 +270,7 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
             success = await process_media_download(context, chat_id, url, is_audio, quality=quality_code)
 
             if not success:
-                await context.bot.send_message(chat_id, f"⚠️ *تعذر التحميل، تأكد من صحة الرابط أو جرب رابطاً آخر.*{DEV_SIGNATURE}", parse_mode='Markdown')
+                await context.bot.send_message(chat_id, f"⚠️ *تعذر التحميل، حاول اختيار خيار (أفضل جودة متاحة) أو جرب رابطاً آخر.*{DEV_SIGNATURE}", parse_mode='Markdown')
             user_requests.pop(chat_id, None)
 
 async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
