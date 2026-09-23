@@ -10,12 +10,11 @@ from PIL import Image
 from io import BytesIO
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
 
-# حط التوكن مالتك هنا
 TELEGRAM_TOKEN = "8708302621:AAFAKBSzXgbq7p5fMimAIJuqqVEcIivTFmw"
 ADMIN_ID = 1283009799
 
-# تشغيل البوت مع تفعيل الـ Threads حتى ما يوكف ويستقبل اكثر من طلب
-bot = telebot.TeleBot(TELEGRAM_TOKEN, threaded=True, num_threads=10)
+# زيادة عدد الألياف (Threads) لضمان السرعة المطلقة
+bot = telebot.TeleBot(TELEGRAM_TOKEN, threaded=True, num_threads=20)
 BOT_ID = int(TELEGRAM_TOKEN.split(':')[0])
 
 user_requests = {}
@@ -111,15 +110,14 @@ def hunt_username_thread(chat_id, message_id, htype):
     found_username = None
     attempts = 0
     start_time = time.time()
-    last_edit_time = 0  # متغير لتقليل سرعة تعديل الرسالة لمنع حظر التيليجرام
+    last_edit_time = 0
     
     while True:
         attempts += 1
         test_user = generate_target_username(htype)
         current_time = time.time()
         
-        # نعدل الرسالة كل 2.5 ثانية فقط حتى نتجنب الـ Rate Limit وتبقى الدائرة تفتر
-        if current_time - last_edit_time > 2.5:
+        if current_time - last_edit_time > 3.0:
             matrix_code = generate_random_matrix()
             anim_text = (
                 f"⚡ *جاري الصيد والتحقق الحقيقي...*\n\n"
@@ -131,14 +129,14 @@ def hunt_username_thread(chat_id, message_id, htype):
             try:
                 bot.edit_message_text(anim_text, chat_id=chat_id, message_id=message_id, parse_mode='Markdown')
                 last_edit_time = time.time()
-            except Exception as e:
-                pass # تجاهل الأخطاء إذا التيليجرام قفل التعديل مؤقتاً
+            except:
+                pass
 
         if check_telegram_username_real(test_user):
             found_username = test_user
             break
             
-        time.sleep(0.01) # سرعة الفحص
+        time.sleep(0.01)
 
     elapsed_time = round(time.time() - start_time, 2)
     final_matrix = generate_random_matrix()
@@ -222,21 +220,14 @@ def convert_image_to_ascii(image_bytes):
     except:
         return None
 
-@bot.callback_query_handler(func=lambda call: True)
-def handle_callback_query(call):
-    # الحل الجذري لمشكلة التحميل: الاستجابة الفورية وتخزينها بالذاكرة
-    try:
-        bot.answer_callback_query(call.id, text="⚡ جاري التنفيذ...", show_alert=False, cache_time=2)
-    except Exception as e:
-        pass # اذا كان الطلب قديم نتجاوزه بدون مشاكل
-
+# المعالجة المستقلة للـ Callback لحل مشكلة التأخير
+def process_callback_async(call):
     chat_id = call.message.chat.id
     data = call.data
 
     if data.startswith("hunt_type_"):
         htype = data.split("_")[-1]
-        # تشغيل الصيد بـ Thread منفصل حتى ما يوكف البوت
-        threading.Thread(target=hunt_username_thread, args=(chat_id, call.message.message_id, htype)).start()
+        hunt_username_thread(chat_id, call.message.message_id, htype)
 
     elif data.startswith("setmode_"):
         mode = data.replace("setmode_", "")
@@ -266,27 +257,35 @@ def handle_callback_query(call):
             selected_q = q_map.get(data, "max")
             
             try:
-                bot.edit_message_text(f"⏳ *جاري التحميل ومعالجة الرابط، انتظر ثواني...*{DEV_SIGNATURE}", chat_id=chat_id, message_id=call.message.message_id, parse_mode='Markdown')
+                bot.edit_message_text(f"⏳ *جاري التحميل ومعالجة الرابط...*{DEV_SIGNATURE}", chat_id=chat_id, message_id=call.message.message_id, parse_mode='Markdown')
             except:
                 pass
             
-            def process_download():
-                success = False
-                if "instagram.com" in url:
-                    success = process_instagram(chat_id, url, is_audio)
-                elif "tiktok.com" in url:
-                    success = process_tiktok(chat_id, url, is_audio)
-                else:
-                    success = process_youtube(chat_id, url, is_audio, selected_q)
+            success = False
+            if "instagram.com" in url:
+                success = process_instagram(chat_id, url, is_audio)
+            elif "tiktok.com" in url:
+                success = process_tiktok(chat_id, url, is_audio)
+            else:
+                success = process_youtube(chat_id, url, is_audio, selected_q)
 
-                if not success:
-                    try:
-                        bot.send_message(chat_id, f"⚠️ *تعذر التحميل، تأكد من صحة الرابط أو جرب رابط ثاني.*{DEV_SIGNATURE}", parse_mode='Markdown')
-                    except:
-                        pass
-                user_requests.pop(chat_id, None)
+            if not success:
+                try:
+                    bot.send_message(chat_id, f"⚠️ *تعذر التحميل، تأكد من صحة الرابط.*{DEV_SIGNATURE}", parse_mode='Markdown')
+                except:
+                    pass
+            user_requests.pop(chat_id, None)
 
-            threading.Thread(target=process_download).start()
+@bot.callback_query_handler(func=lambda call: True)
+def handle_callback_query(call):
+    # إجابة فورية وحاسمة تلغي الـ Loading بنفس اللحظة
+    try:
+        bot.answer_callback_query(call.id)
+    except Exception:
+        pass
+
+    # تشغيل منطق العملية بخيط فرعي مستقل تماماً
+    threading.Thread(target=process_callback_async, args=(call,)).start()
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
@@ -324,7 +323,7 @@ def handle_photos(message):
         if res:
             bot.reply_to(message, f"✨ *النتيجة:*\n\n{res}{DEV_SIGNATURE}", parse_mode='Markdown')
     except:
-        bot.reply_to(message, f"⚠️ حدث خطأ بالمعالجة، جرب صورة ثانية.{DEV_SIGNATURE}", parse_mode='Markdown')
+        bot.reply_to(message, f"⚠️ حدث خطأ بالمعالجة.{DEV_SIGNATURE}", parse_mode='Markdown')
 
 @bot.message_handler(func=lambda message: True)
 def handle_all_messages(message):
@@ -339,7 +338,7 @@ def handle_all_messages(message):
         name = text
         decorations = [
             f"⚡ ⦗ {name} ⦗ ⚡{DEV_SIGNATURE}\n-------------------",
-            f"💎 »» {name} «« 💎{DEV_SIGNATURE}\n-------------------",
+            f"💎 »» {name} »« 💎{DEV_SIGNATURE}\n-------------------",
             f"🔥 ⦇ 𝄠 {name} 𝄠 ⦆ 🔥{DEV_SIGNATURE}\n-------------------",
             f"🌟 ༺ {name} ༻ 🌟{DEV_SIGNATURE}\n-------------------",
             f"🦅 ⫷ {name} ⫸ 🦅{DEV_SIGNATURE}\n-------------------",
@@ -388,10 +387,8 @@ def handle_all_messages(message):
 if __name__ == "__main__":
     while True:
         try:
-            print("Bot is starting polling...")
+            print("Bot is running seamlessly...")
             bot.remove_webhook()
-            # تشغيل البوت بدون ما يوكف نهائيا
             bot.infinity_polling(timeout=10, long_polling_timeout=5)
         except Exception as e:
-            print(f"Error occurred: {e}")
-            time.sleep(3) # اذا صار خطأ بالسيرفر ينتظر 3 ثواني ويرجع يشتغل
+            time.sleep(2)
