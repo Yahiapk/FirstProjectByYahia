@@ -16,6 +16,7 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, Cal
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 ADMIN_ID = int(os.environ.get("ADMIN_ID", "1283009799"))
 RAPIDAPI_KEY = os.environ.get("RAPIDAPI_KEY")
+PINTEREST_API_KEY = os.environ.get("PINTEREST_API_KEY") # سحب آمن 100% من بيئة السيرفر
 REMOVEBG_KEY = os.environ.get("REMOVEBG_KEY")
 
 OXFORD_PDF_URL = "https://drive.google.com/uc?export=download&id=1GqE_PbV4GMUMo6B99sF3v4KtDlErCq7I"
@@ -124,7 +125,7 @@ def generate_target_username(htype):
     elif htype == "4": return f"{x1}{x2}{d1}{d2}{x3}"
     elif htype == "5": return f"{x1}_{d1}{x2}{d2}"
     elif htype == "6": return f"{x1}_{x2}{d1}{d2}"
-    elif htype == "7": return f"{x1}_{x2}{x3}{x4}"
+    elif htype == "7": return f"{x1}{x2}{x3}{x4}"
     return f"{x1}{d1}_{d2}{x2}"
 
 def check_telegram_username_real(username):
@@ -258,23 +259,26 @@ def download_youtube_rapidapi(url, is_audio):
         print(f"API Download Error: {e}")
     return None
 
-# دالة مخصصة لسحب فيديوهات بينترست بطريقة مشابهة ليوتيوب عبر الـ API المباشر
-def download_pinterest_api(url):
+def download_pinterest_rapidapi(url):
+    if not PINTEREST_API_KEY: return None
     filename = f"dl_{int(time.time())}_{random.randint(1000,9999)}.mp4"
+    
+    api_url = "https://pinterest-video-and-image-downloader.p.rapidapi.com/pinterest"
+    headers = {
+        "x-rapidapi-key": PINTEREST_API_KEY,
+        "x-rapidapi-host": "pinterest-video-and-image-downloader.p.rapidapi.com"
+    }
+    
     try:
-        api_url = f"https://pinterest-video-downloader.p.rapidapi.com/download?url={url}"
-        # سنستخدم محرك سحب مباشر وسريع عبر API عام مجاني لجلب رابط الفيديو الصافي
-        res = requests.get(f"https://api.nekobot.cc/api/imagegen?type=pinterest&url={url}", timeout=10)
-        # إذا اعتمدنا على الـ API المجاني العام المخصص للينكس
-        r = requests.get(f"https://pinvids.Vip/api/download?url={url}", headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
-        if r.status_code == 200:
-            data = r.json()
-            video_url = data.get("video_url") or data.get("url")
-            if video_url:
-                vid_data = requests.get(video_url, stream=True, timeout=30)
-                if vid_data.status_code == 200:
+        res = requests.get(api_url, headers=headers, params={"url": url}, timeout=15)
+        if res.status_code == 200:
+            data = res.json()
+            download_link = data.get("video_url") or data.get("download_url") or data.get("url")
+            if download_link:
+                r = requests.get(download_link, stream=True, timeout=60)
+                if r.status_code == 200:
                     with open(filename, 'wb') as f:
-                        for chunk in vid_data.iter_content(chunk_size=32768):
+                        for chunk in r.iter_content(chunk_size=32768):
                             f.write(chunk)
                     return filename
     except Exception as e:
@@ -288,7 +292,7 @@ def download_media_direct(url, is_audio, quality="best"):
             return yt_file
 
     if "pin.it" in url or "pinterest.com" in url:
-        pin_file = download_pinterest_api(url)
+        pin_file = download_pinterest_rapidapi(url)
         if pin_file and os.path.exists(pin_file):
             return pin_file
 
