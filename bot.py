@@ -12,8 +12,9 @@ import yt_dlp
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
 
-TELEGRAM_TOKEN = "8708302621:AAFAKBSzXgbq7p5fMimAIJuqqVEcIivTFmw"
-ADMIN_ID = 1283009799
+# سحب التوكين بأمان من متغيرات البيئة بـ Railway
+TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
+ADMIN_ID = int(os.environ.get("ADMIN_ID", "1283009799"))
 
 user_requests = {}
 user_selected_mode = {}
@@ -151,7 +152,6 @@ async def hunt_username_task(context: ContextTypes.DEFAULT_TYPE, chat_id: int, m
     except:
         await context.bot.send_message(chat_id, result_text, reply_markup=get_hunt_types_keyboard(), parse_mode='Markdown')
 
-# التحميل المباشر عن طريق yt-dlp بدون أي وسيط
 def download_media_direct(url, is_audio):
     filename = f"dl_{int(time.time())}_{random.randint(1000,9999)}"
     ydl_opts = {
@@ -179,13 +179,12 @@ async def process_media_download(context: ContextTypes.DEFAULT_TYPE, chat_id: in
                 else:
                     await context.bot.send_video(chat_id, media_file, caption=f"🎬 *تم تحميل الفيديو بنجاح*{DEV_SIGNATURE}", parse_mode='Markdown')
             
-            # تنظيف الملفات المؤقتة بعد الإرسال
             try:
                 os.remove(file_path)
             except:
                 pass
             return True
-    except Exception as e:
+    except Exception:
         pass
     return False
 
@@ -262,7 +261,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         return
     elif text == "🎨 تحويل الصورة إلى رسم بالنقاط":
         user_state[chat_id] = "ascii"
-        await update.message.reply_text(f"🎨 *أرسل أي صورة الآن لتحويلها إلى رسم فني بالنقاط:*{DEV_SIGNATURE}", parse_mode='Markdown')
+        await update.message.reply_text(f"🎨 *أرسل أي صورة الآن لتحويلها إلى رسم فني بالنقاط:*{DEV_SIGNATURE}", reply_markup=get_main_menu(), parse_mode='Markdown')
         return
 
     if user_state.get(chat_id) == "waiting_name":
@@ -312,6 +311,10 @@ async def handle_photo_messages(update: Update, context: ContextTypes.DEFAULT_TY
         await update.message.reply_text(f"⚠️ حدث خطأ بالمعالجة.{DEV_SIGNATURE}", parse_mode='Markdown')
 
 if __name__ == '__main__':
+    if not TELEGRAM_TOKEN:
+        print("Error: TELEGRAM_TOKEN environment variable is missing!")
+        exit(1)
+
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
     app.add_handler(CommandHandler('start', start_command))
@@ -319,5 +322,5 @@ if __name__ == '__main__':
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo_messages))
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_text_messages))
 
-    print("Bot running direct extraction...")
+    print("Bot is running securely with Environment Variables...")
     app.run_polling()
