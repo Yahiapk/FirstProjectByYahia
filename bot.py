@@ -18,7 +18,7 @@ ADMIN_ID = int(os.environ.get("ADMIN_ID", "1283009799"))
 # مفتاح API المفعل مالتك
 RAPIDAPI_KEY = os.environ.get("RAPIDAPI_KEY", "0276121538msh1cbbbeec1cc1582p11753ajsn0b6bf3fabb83")
 
-# رابط التحميل المباشر لملف أوكسفورد من غوغل درايف مالتك
+# رابط ملف أوكسفورد
 OXFORD_PDF_URL = "https://drive.google.com/uc?export=download&id=1GqE_PbV4GMUMo6B99sF3v4KtDlErCq7I"
 
 user_requests = {}
@@ -26,6 +26,42 @@ user_selected_mode = {}
 user_state = {}
 
 DEV_SIGNATURE = "\n\n━━━━━━━━━━━━━\n💻 *Dev: Yahia | المطور يحيى*\n⚠️ _ديربالك على عيونك لأن بس تصبح الصباح ينعمن من نور يحيى_"
+
+# رسمة سيف الإمام علي (ذو الفقار) الملوية والاحترافية
+SWORD_ASCII = """
+ تم صيد يوزر متاح Dev:YahiaFadhel
+
+                     /\\
+                    /  \\
+                   /    \\
+                  /  /\  \\
+                 /  /  \  \\
+                /  /    \  \\
+               /  /      \  \\
+              /  /        \  \\
+             /  /          \  \\
+            /  /            \  \\
+           /  /              \  \\
+          /  /                \  \\
+         /  /                  \  \\
+        /  /                    \  \\
+       /  /                      \  \\
+      /  /                        \  \\
+     /  /                          \  \\
+    (  (                            )  )
+     \  \                          /  /
+      \  \                        /  /
+       \  \                      /  /
+        \  \                    /  /
+         \  \__________________/  /
+          \______        ________/
+                 |  ||  |
+                 |  ||  |
+                [________]
+                   |  |
+                   |  |
+                  (____)
+"""
 
 def get_main_menu():
     keyboard = [
@@ -67,11 +103,13 @@ def get_media_type_keyboard():
     ]
     return InlineKeyboardMarkup(keyboard)
 
+# قائمة الأشكال المحددة بالظبط
 def get_hunt_types_keyboard():
     keyboard = [
-        [InlineKeyboardButton("🎯 صيد صيغة: x1_x1", callback_data="hunt_type_1")],
-        [InlineKeyboardButton("🎯 صيد صيغة: x1_1x", callback_data="hunt_type_2")],
-        [InlineKeyboardButton("🎯 صيد صيغة: xx_11", callback_data="hunt_type_3")]
+        [InlineKeyboardButton("🎯 صيغة: x1_1x", callback_data="hunt_type_1"), InlineKeyboardButton("🎯 صيغة: xx_11", callback_data="hunt_type_2")],
+        [InlineKeyboardButton("🎯 صيغة: x1x1x", callback_data="hunt_type_3"), InlineKeyboardButton("🎯 صيغة: xx11x", callback_data="hunt_type_4")],
+        [InlineKeyboardButton("🎯 صيغة: x_1x1", callback_data="hunt_type_5"), InlineKeyboardButton("🎯 صيغة: x_x11", callback_data="hunt_type_6")],
+        [InlineKeyboardButton("🎯 صيغة: x_xxx", callback_data="hunt_type_7")]
     ]
     return InlineKeyboardMarkup(keyboard)
 
@@ -79,21 +117,29 @@ def generate_random_matrix():
     bits = ["".join(random.choices("01", k=8)) for _ in range(4)]
     return " ".join(bits)
 
+# توليد الأشكال المطلوبة بالتمام
 def generate_target_username(htype):
     letters = string.ascii_lowercase
     digits = string.digits
-    if htype == "1":
-        c1, c2 = random.choice(letters), random.choice(letters)
-        d1, d2 = random.choice(digits), random.choice(digits)
-        return f"{c1}{d1}_{c2}{d2}"
-    elif htype == "2":
-        c1, c2 = random.choice(letters), random.choice(letters)
-        d1, d2 = random.choice(digits), random.choice(digits)
-        return f"{c1}{d1}_{d2}{c2}"
-    else:
-        c1, c2 = random.choice(letters), random.choice(letters)
-        d1, d2 = random.choice(digits), random.choice(digits)
-        return f"{c1}{c2}_{d1}{d2}"
+    
+    x1, x2, x3, x4 = random.choice(letters), random.choice(letters), random.choice(letters), random.choice(letters)
+    d1, d2 = random.choice(digits), random.choice(digits)
+
+    if htype == "1":    # x1_1x
+        return f"{x1}{d1}_{d2}{x2}"
+    elif htype == "2":  # xx_11
+        return f"{x1}{x2}_{d1}{d2}"
+    elif htype == "3":  # x1x1x
+        return f"{x1}{d1}{x2}{d2}{x3}"
+    elif htype == "4":  # xx11x
+        return f"{x1}{x2}{d1}{d2}{x3}"
+    elif htype == "5":  # x_1x1
+        return f"{x1}_{d1}{x2}{d2}"
+    elif htype == "6":  # x_x11
+        return f"{x1}_{x2}{d1}{d2}"
+    elif htype == "7":  # x_xxx
+        return f"{x1}_{x2}{x3}{x4}"
+    return f"{x1}{d1}_{d2}{x2}"
 
 def check_telegram_username_real(username):
     try:
@@ -121,7 +167,7 @@ async def hunt_username_task(context: ContextTypes.DEFAULT_TYPE, chat_id: int, m
         test_user = generate_target_username(htype)
         current_time = time.time()
 
-        if current_time - last_edit_time > 2.0:
+        if current_time - last_edit_time > 1.8:
             matrix_code = generate_random_matrix()
             anim_text = (
                 f"⚡ *جاري الصيد السريع والصاروخي...*\n\n"
@@ -141,24 +187,30 @@ async def hunt_username_task(context: ContextTypes.DEFAULT_TYPE, chat_id: int, m
             found_username = test_user
             break
 
-        await asyncio.sleep(0.01)
+        await asyncio.sleep(0.02)
 
     elapsed_time = round(time.time() - start_time, 2)
     final_matrix = generate_random_matrix()
     
+    # 1. الرسالة الأولى: معلومات اليوزر المصيود
     result_text = (
-        f"🎉 *تم ايجاد يوزر متاح، ويحيى عمك وعم ولدك!* 👑🔥\n\n"
+        f"🎉 *تم إيجاد يوزر متاح بنجاح!* 👑🔥\n\n"
         f"🟢 `{final_matrix}`\n"
-        f"📌 اليوزر الصيد: `@{found_username}`\n"
-        f"⏱ الوقت المستغرق: `{elapsed_time}` ثانية\n"
+        f"📌 اليوزر المتاح: `@{found_username}`\n"
+        f"⏱ وقت الاستغراق: `{elapsed_time}` ثانية\n"
         f"📊 عدد المحاولات: `{attempts}`\n"
         f"🔗 الرابط المباشر: https://t.me/{found_username}"
         f"{DEV_SIGNATURE}"
     )
+    
     try:
         await context.bot.edit_message_text(result_text, chat_id=chat_id, message_id=message_id, reply_markup=get_hunt_types_keyboard(), parse_mode='Markdown')
     except:
         await context.bot.send_message(chat_id, result_text, reply_markup=get_hunt_types_keyboard(), parse_mode='Markdown')
+
+    # 2. الرسالة الثانية: سيف الإمام علي (ذو الفقار) المكتوب فوقه العبارة
+    sword_msg = f"```\n{SWORD_ASCII}\n```"
+    await context.bot.send_message(chat_id, sword_msg, parse_mode='Markdown')
 
 # تنزيل يوتيوب عبر RapidAPI
 def download_youtube_rapidapi(url, is_audio):
@@ -328,7 +380,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         await update.message.reply_text(f"📥 *أرسل رابط تيك توك، يوتيوب، انستغرام، أو بينترست مباشرة:*{DEV_SIGNATURE}", reply_markup=get_features_keyboard(), parse_mode='Markdown')
         return
     elif text == "🔍 صيد يوزرات تيليجرام الحقيقي (صاروخي)":
-        await update.message.reply_text(f"🔍 *اختر صيغة الصيد والتحقق الحقيقي السريع من سيرفرات تيليجرام:*{DEV_SIGNATURE}", reply_markup=get_hunt_types_keyboard(), parse_mode='Markdown')
+        await update.message.reply_text(f"🔍 *اختر صيغة الصيد المطلوبة:*{DEV_SIGNATURE}", reply_markup=get_hunt_types_keyboard(), parse_mode='Markdown')
         return
     elif text == "📚 ملف أوكسفورد":
         kb = InlineKeyboardMarkup([[InlineKeyboardButton("📥 اضغط هنا لتنزيل ملف أوكسفورد", url=OXFORD_PDF_URL)]])
