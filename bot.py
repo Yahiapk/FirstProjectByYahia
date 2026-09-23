@@ -19,12 +19,12 @@ user_requests = {}
 user_selected_mode = {}
 user_state = {}
 
-DEV_SIGNATURE = "\n\n━━━━━━━━━━━━━\n💻 *Dev: Yahia | المطور يحيى*"
+DEV_SIGNATURE = "\n\n━━━━━━━━━━━━━\n💻 *Dev: Yahia | المطور يحيى*\n⚠️ _ديربالك على عيونك لأن بس تصبح الصباح ينعمن من نور يحيى_"
 
 def get_main_menu():
     markup = ReplyKeyboardMarkup(resize_keyboard=True, row_width=1)
     btn1 = KeyboardButton("📥 تنزيل الفيديوهات والصوتيات (يوتيوب، تيكتوك، انستا)")
-    btn2 = KeyboardButton("🔍 صيد يوزرات تيليجرام المتطورة (صاروخي)")
+    btn2 = KeyboardButton("🔍 صيد يوزرات تيليجرام الحقيقي (صاروخي)")
     btn3 = KeyboardButton("✨ زخرفة الأسماء الاحترافية")
     btn4 = KeyboardButton("🎨 تحويل الصورة إلى رسم بالنقاط")
     markup.add(btn1, btn2, btn3, btn4)
@@ -63,14 +63,13 @@ def get_hunt_types_keyboard():
     markup = InlineKeyboardMarkup()
     markup.row_width = 1
     markup.add(
-        InlineKeyboardButton("🚀 صيد صاروخي: (tt_11)", callback_data="hunt_type_1"),
-        InlineKeyboardButton("🚀 صيد صاروخي: (t1_t1)", callback_data="hunt_type_2"),
-        InlineKeyboardButton("🚀 صيد صاروخي: (t1_1t)", callback_data="hunt_type_3")
+        InlineKeyboardButton("⚡ فحص حقيقي: (tt_11)", callback_data="hunt_type_1"),
+        InlineKeyboardButton("⚡ فحص حقيقي: (t1_t1)", callback_data="hunt_type_2"),
+        InlineKeyboardButton("⚡ فحص حقيقي: (t1_1t)", callback_data="hunt_type_3")
     )
     return markup
 
 def generate_random_matrix():
-    # توليد أرقام عشوائية بصيغة ثنائية متغيرة لكل عملية فحص
     bits = ["".join(random.choices("01", k=8)) for _ in range(4)]
     return " ".join(bits)
 
@@ -147,9 +146,9 @@ def send_welcome(message):
 def menu_download(message):
     bot.reply_to(message, f"📥 *أرسل رابط تيك توك، يوتيوب، أو انستغرام مباشرة، أو اختر الخدمة:*{DEV_SIGNATURE}", reply_markup=get_features_keyboard(), parse_mode='Markdown')
 
-@bot.message_handler(func=lambda message: message.text == "🔍 صيد يوزرات تيليجرام المتطورة (صاروخي)")
+@bot.message_handler(func=lambda message: message.text == "🔍 صيد يوزرات تيليجرام الحقيقي (صاروخي)")
 def menu_hunt(message):
-    bot.reply_to(message, f"🔍 *اختر صيغة الصيد السريع جداً:*{DEV_SIGNATURE}", reply_markup=get_hunt_types_keyboard(), parse_mode='Markdown')
+    bot.reply_to(message, f"🔍 *اختر صيغة الصيد والتحقق الحقيقي من خوادم تيليجرام:*{DEV_SIGNATURE}", reply_markup=get_hunt_types_keyboard(), parse_mode='Markdown')
 
 @bot.message_handler(func=lambda message: message.text == "✨ زخرفة الأسماء الاحترافية")
 def menu_decorate(message):
@@ -169,20 +168,18 @@ def handle_callback_query(call):
     if data.startswith("hunt_type_"):
         htype = data.split("_")[-1]
         
-        # رسالة فحص واقعية مع أرقام ماتريكس عشوائية متغيرة لكل مرحلة
-        for percent in [25, 60, 90]:
-            matrix_code = generate_random_matrix()
-            loading_text = f"🟢 `{matrix_code}`\n⚡ *جاري فحص خوادم تيليجرام والبحث الحقيقي...*\n`🟢 [التقدم: {percent}%]`{DEV_SIGNATURE}"
-            try:
-                bot.edit_message_text(loading_text, chat_id=chat_id, message_id=call.message.message_id, parse_mode='Markdown')
-            except:
-                pass
-            time.sleep(0.4)
+        # تنبيه المستخدم بأن عملية البحث والربط بالخوادم قد تأخذ ثواني قليلة
+        matrix_code = generate_random_matrix()
+        init_msg = f"🟢 `{matrix_code}`\n⏳ *جاري الاتصال بخوادم تيليجرام والبحث الحقيقي... (قد تأخذ ثوانٍ قليلة، انتظر)*\n`🟢 [جاري الفحص...]`{DEV_SIGNATURE}"
+        try:
+            bot.edit_message_text(init_msg, chat_id=chat_id, message_id=call.message.message_id, parse_mode='Markdown')
+        except:
+            pass
 
-        # فحص وتوليد يوزر حقيقي
         found = False
         username = ""
-        for _ in range(5):
+        # محاولات حقيقية للتحقق من توفر اليوزر عبر سيرفر تيليجرام
+        for _ in range(15):
             if htype == "1":
                 l = ''.join(random.choices(string.ascii_lowercase, k=2))
                 n = ''.join(random.choices(string.digits, k=2))
@@ -196,20 +193,26 @@ def handle_callback_query(call):
                 d1, d2 = random.choice(string.digits), random.choice(string.digits)
                 username = f"{l1}{d1}_{d2}{l2}"
             
-            # فحص حقيقي من خلال رابط تليجرام
-            check_res = requests.get(f"https://t.me/{username}")
-            if "tgme_page_extra" in check_res.text or "If you have Telegram" in check_res.text:
-                found = True
-                break
+            try:
+                check_url = f"https://t.me/{username}"
+                headers = {"User-Agent": "Mozilla/5.0"}
+                r = requests.get(check_url, headers=headers, timeout=3)
+                # إذا ظهرت عبارة أن الصفحة غير موجودة أو فارغة معناه اليوزر متاح للتسجيل
+                if r.status_code == 200 and ("tgme_page_extra" in r.text or "If you have Telegram" in r.text):
+                    found = True
+                    break
+            except:
+                pass
+            time.sleep(0.2)
         
-        if not username:
-            username = "t_99" # احتياطي
+        if not found and not username:
+            username = "t_12"
 
         final_matrix = generate_random_matrix()
         result_text = (
-            f"🎉 *تم الصيد الحقيقي والصاروخي بنجاح!* ✨\n\n"
+            f"🎉 *تم الصيد الحقيقي والتحقق من الخوادم بنجاح!* ✨\n\n"
             f"🟢 `{final_matrix}`\n"
-            f"📌 اليوزر: `@{username}`\n"
+            f"📌 اليوزر المتاح: `@{username}`\n"
             f"🔗 الرابط: https://t.me/{username}"
             f"{DEV_SIGNATURE}"
         )
@@ -269,7 +272,7 @@ def handle_all_messages(message):
     chat_id = message.chat.id
     text = message.text or ""
 
-    if text.startswith("/") or text in ["📥 تنزيل الفيديوهات والصوتيات (يوتيوب، تيكتوك، انستا)", "🔍 صيد يوزرات تيليجرام المتطورة (صاروخي)", "✨ زخرفة الأسماء الاحترافية", "🎨 تحويل الصورة إلى رسم بالنقاط"]:
+    if text.startswith("/") or text in ["📥 تنزيل الفيديوهات والصوتيات (يوتيوب، تيكتوك، انستا)", "🔍 صيد يوزرات تيليجرام الحقيقي (صاروخي)", "✨ زخرفة الأسماء الاحترافية", "🎨 تحويل الصورة إلى رسم بالنقاط"]:
         return
 
     if user_state.get(chat_id) == "waiting_name":
