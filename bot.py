@@ -9,6 +9,10 @@ from PIL import Image, ImageDraw, ImageFont
 from io import BytesIO
 import yt_dlp
 
+# مكتبات ضبط النص العربي للملصقات
+import arabic_reshaper
+from bidi.algorithm import get_display
+
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
 
@@ -24,6 +28,7 @@ user_state = {}
 
 DEV_SIGNATURE = "💻 Dev: YahiaFadhel"
 
+# القائمة الرئيسية بدون المساعد الذكي
 def get_main_menu():
     keyboard = [
         [KeyboardButton("📥 تنزيل الفيديوهات والصوتيات (يوتيوب، تيكتوك، انستا، بينترست)")],
@@ -32,7 +37,6 @@ def get_main_menu():
         [KeyboardButton("🔤 تحويل النص إلى ملصق (Sticker)")],
         [KeyboardButton("⏰ مواقيت الصلاة والأذكار (جعفري)")],
         [KeyboardButton("🔍 صيد يوزرات تيليجرام الحقيقي (صاروخي)")],
-        [KeyboardButton("🤖 المساعد الذكي (أسئلة واستفسارات)")],
         [KeyboardButton("📚 ملف أوكسفورد")],
         [KeyboardButton("✨ زخرفة الأسماء الاحترافية")],
         [KeyboardButton("🎨 تحويل الصورة إلى رسم بالنقاط")]
@@ -79,11 +83,18 @@ def get_hunt_types_keyboard():
     return InlineKeyboardMarkup(keyboard)
 
 def get_prayer_cities_keyboard():
-    cities = ["بغداد", "النجف", "كربلاء", "البصرة", "أربيل", "الموصل", "الحلة", "الناصرية", "العمارة", "الديوانية", "الكوت", "السماوة", "كركوك", "ديالى", "الأنبار", "دهوك", "السليمانية"]
+    cities = [
+        ("بغداد", "Baghdad"), ("النجف", "Najaf"), ("كربلاء", "Karbala"), 
+        ("البصرة", "Basra"), ("أربيل", "Erbil"), ("الموصل", "Mosul"), 
+        ("الحلة", "Hillah"), ("الناصرية", "Nasiriyah"), ("العمارة", "Amara"), 
+        ("الديوانية", "Diwaniyah"), ("الكوت", "Kut"), ("السماوة", "Samawah"), 
+        ("كركوك", "Kirkuk"), ("ديالى", "Diyala"), ("الأنبار", "Anbar"), 
+        ("دهوك", "Duhok"), ("السليمانية", "Sulaymaniyah")
+    ]
     keyboard = []
     row = []
-    for city in cities:
-        row.append(InlineKeyboardButton(city, callback_data=f"pray_{city}"))
+    for ar_name, en_name in cities:
+        row.append(InlineKeyboardButton(ar_name, callback_data=f"pray_{en_name}_{ar_name}"))
         if len(row) == 3:
             keyboard.append(row)
             row = []
@@ -98,32 +109,22 @@ def generate_random_matrix():
 def generate_target_username(htype):
     letters = string.ascii_lowercase
     digits = string.digits
-    
     x1, x2, x3, x4 = random.choice(letters), random.choice(letters), random.choice(letters), random.choice(letters)
     d1, d2 = random.choice(digits), random.choice(digits)
 
-    if htype == "1":
-        return f"{x1}{d1}_{d2}{x2}"
-    elif htype == "2":
-        return f"{x1}{x2}_{d1}{d2}"
-    elif htype == "3":
-        return f"{x1}{d1}{x2}{d2}{x3}"
-    elif htype == "4":
-        return f"{x1}{x2}{d1}{d2}{x3}"
-    elif htype == "5":
-        return f"{x1}_{d1}{x2}{d2}"
-    elif htype == "6":
-        return f"{x1}_{x2}{d1}{d2}"
-    elif htype == "7":
-        return f"{x1}_{x2}{x3}{x4}"
+    if htype == "1": return f"{x1}{d1}_{d2}{x2}"
+    elif htype == "2": return f"{x1}{x2}_{d1}{d2}"
+    elif htype == "3": return f"{x1}{d1}{x2}{d2}{x3}"
+    elif htype == "4": return f"{x1}{x2}{d1}{d2}{x3}"
+    elif htype == "5": return f"{x1}_{d1}{x2}{d2}"
+    elif htype == "6": return f"{x1}_{x2}{d1}{d2}"
+    elif htype == "7": return f"{x1}_{x2}{x3}{x4}"
     return f"{x1}{d1}_{d2}{x2}"
 
 def check_telegram_username_real(username):
     try:
         url = f"https://t.me/{username}"
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
-        }
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
         res = requests.get(url, headers=headers, timeout=1.5)
         if res.status_code == 200:
             text = res.text
@@ -139,7 +140,7 @@ def build_sword_with_info(username, attempts, elapsed_time):
     time_str = f"Time: {elapsed_time}s".center(22)
     dev_str = f"{DEV_SIGNATURE}".center(22)
 
-    sword_art = f"""```
+    return f"""```
                   /\\
                  /  \\
                 / /\\ \\
@@ -170,7 +171,6 @@ def build_sword_with_info(username, attempts, elapsed_time):
                  |   |
                 (_____)
 ```"""
-    return sword_art
 
 async def hunt_username_task(context: ContextTypes.DEFAULT_TYPE, chat_id: int, message_id: int, htype: str):
     found_username = None
@@ -214,30 +214,19 @@ async def hunt_username_task(context: ContextTypes.DEFAULT_TYPE, chat_id: int, m
         f"{sword_final}"
     )
 
-    await context.bot.send_message(
-        chat_id=chat_id, 
-        text=caption_text, 
-        reply_markup=get_hunt_types_keyboard(), 
-        parse_mode='Markdown'
-    )
+    await context.bot.send_message(chat_id=chat_id, text=caption_text, reply_markup=get_hunt_types_keyboard(), parse_mode='Markdown')
 
 def download_youtube_rapidapi(url, is_audio):
-    if not RAPIDAPI_KEY:
-        return None
-
+    if not RAPIDAPI_KEY: return None
     filename = f"dl_{int(time.time())}_{random.randint(1000,9999)}"
     ext = "mp3" if is_audio else "mp4"
     file_path = f"{filename}.{ext}"
 
     api_url = "https://youtube-media-downloader.p.rapidapi.com/v2/video/details"
-    headers = {
-        "x-rapidapi-key": RAPIDAPI_KEY,
-        "x-rapidapi-host": "youtube-media-downloader.p.rapidapi.com"
-    }
+    headers = {"x-rapidapi-key": RAPIDAPI_KEY, "x-rapidapi-host": "youtube-media-downloader.p.rapidapi.com"}
     
     video_id_match = re.search(r'(?:v=|\/|shorts\/)([0-9A-Za-z_-]{11})', url)
-    if not video_id_match:
-        return None
+    if not video_id_match: return None
     video_id = video_id_match.group(1)
 
     try:
@@ -245,15 +234,12 @@ def download_youtube_rapidapi(url, is_audio):
         if res.status_code == 200:
             data = res.json()
             download_link = None
-            
             if is_audio:
                 audios = data.get("audios", {}).get("items", [])
-                if audios:
-                    download_link = audios[0].get("url")
+                if audios: download_link = audios[0].get("url")
             else:
                 videos = data.get("videos", {}).get("items", [])
-                if videos:
-                    download_link = videos[0].get("url")
+                if videos: download_link = videos[0].get("url")
 
             if download_link:
                 r = requests.get(download_link, stream=True, timeout=120)
@@ -264,14 +250,12 @@ def download_youtube_rapidapi(url, is_audio):
                     return file_path
     except Exception as e:
         print(f"API Download Error: {e}")
-
     return None
 
 def download_media_direct(url, is_audio, quality="best"):
     if "youtube.com" in url or "youtu.be" in url:
         yt_file = download_youtube_rapidapi(url, is_audio)
-        if yt_file and os.path.exists(yt_file):
-            return yt_file
+        if yt_file and os.path.exists(yt_file): return yt_file
 
     filename = f"dl_{int(time.time())}_{random.randint(1000,9999)}"
     ydl_opts = {
@@ -280,36 +264,27 @@ def download_media_direct(url, is_audio, quality="best"):
         'no_warnings': True,
         'nocheckcertificate': True,
         'geo_bypass': True,
-        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
     }
 
     if is_audio:
         ydl_opts['format'] = 'bestaudio/best'
-        ydl_opts['postprocessors'] = [{
-            'key': 'FFmpegExtractAudio',
-            'preferredcodec': 'mp3',
-            'preferredquality': '192',
-        }]
+        ydl_opts['postprocessors'] = [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3', 'preferredquality': '192'}]
     else:
         ydl_opts['format'] = 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best'
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
-            if 'entries' in info and len(info['entries']) > 0:
-                info = info['entries'][0]
+            if 'entries' in info and len(info['entries']) > 0: info = info['entries'][0]
             filename_actual = ydl.prepare_filename(info)
-            
-            if os.path.exists(filename_actual):
-                return filename_actual
+            if os.path.exists(filename_actual): return filename_actual
 
             base = os.path.splitext(filename_actual)[0]
             for ext in ['.mp4', '.mkv', '.webm', '.mp3', '.m4a', '.jpg', '.png', '.webp']:
-                if os.path.exists(base + ext):
-                    return base + ext
+                if os.path.exists(base + ext): return base + ext
     except Exception as e:
-        print(f"yt-dlp fallback error: {e}")
-
+        print(f"yt-dlp error: {e}")
     return None
 
 async def process_media_download(context: ContextTypes.DEFAULT_TYPE, chat_id: int, url: str, is_audio: bool, quality: str = "best"):
@@ -321,17 +296,14 @@ async def process_media_download(context: ContextTypes.DEFAULT_TYPE, chat_id: in
                 if ext in ['.jpg', '.jpeg', '.png', '.webp']:
                     await context.bot.send_photo(chat_id, media_file, caption=f"📌 *تم تنزيل الصورة بنجاح*\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
                 elif is_audio or ext in ['.mp3', '.m4a', '.wav', '.ogg']:
-                    await context.bot.send_audio(chat_id, media_file, caption=f"🎵 *تم تحميل الصوت بنجاح*\n\n{DEV_SIGNATURE}", parse_mode='Markdown', read_timeout=120, write_timeout=120)
+                    await context.bot.send_audio(chat_id, media_file, caption=f"🎵 *تم تحميل الصوت بنجاح*\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
                 else:
-                    await context.bot.send_video(chat_id, media_file, caption=f"🎬 *تم تحميل الفيديو بنجاح*\n\n{DEV_SIGNATURE}", parse_mode='Markdown', read_timeout=120, write_timeout=120)
-            
-            try:
-                os.remove(file_path)
-            except:
-                pass
+                    await context.bot.send_video(chat_id, media_file, caption=f"🎬 *تم تحميل الفيديو بنجاح*\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
+            try: os.remove(file_path)
+            except: pass
             return True
     except Exception as e:
-        print(f"Download Error Log: {e}")
+        print(f"Download Error: {e}")
     return False
 
 def convert_image_to_ascii(image_bytes):
@@ -345,22 +317,9 @@ def convert_image_to_ascii(image_bytes):
         pixels = [chars[p // 25] for p in img.getdata()]
         pixel_str = "".join(pixels)
         ascii_lines = [pixel_str[i:i + new_w] for i in range(0, len(pixel_str), new_w)]
-        joined_lines = "\n".join(ascii_lines)
-        return "```\n" + joined_lines + "\n```"
+        return "```\n" + "\n".join(ascii_lines) + "\n```"
     except:
         return None
-
-def ask_ai_assistant(prompt):
-    try:
-        res = requests.get(f"https://api.duckduckgo.com/?q={prompt}&format=json", timeout=5)
-        if res.status_code == 200:
-            data = res.json()
-            abstract = data.get("AbstractText", "")
-            if abstract:
-                return abstract
-    except:
-        pass
-    return "💡 أهلاً بك! أنا مساعدك الذكي، أستطيع إجابتك عن أي سؤال واستفسار تقني أو عام. أرسل سؤالك بوضوح وسأجيبك فوراً!"
 
 def remove_background_api(image_bytes):
     try:
@@ -371,49 +330,53 @@ def remove_background_api(image_bytes):
         pass
     return None
 
+# إصلاح مشكلة الخط العربي بالملصقات 100%
 def create_text_sticker(text):
     try:
         img = Image.new('RGBA', (512, 512), color=(0, 0, 0, 0))
         d = ImageDraw.Draw(img)
         
-        d.rounded_rectangle([20, 150, 492, 360], radius=30, fill=(30, 30, 46, 230), outline=(137, 180, 250), width=4)
+        # خلفية الملصق
+        d.rounded_rectangle([20, 150, 492, 360], radius=30, fill=(30, 30, 46, 240), outline=(137, 180, 250), width=5)
         
+        # معالجة النص العربي وتحسين الشفاه والربط
+        reshaped_text = arabic_reshaper.reshape(text)
+        bidi_text = get_display(reshaped_text)
+
         try:
-            font = ImageFont.truetype("arial.ttf", 36)
+            # استخدام خط متوفر بالخادم
+            font = ImageFont.truetype("arial.ttf", 38)
         except:
             font = ImageFont.load_default()
             
-        d.text((256, 255), text, fill=(255, 255, 255), font=font, anchor="mm")
+        d.text((256, 255), bidi_text, fill=(255, 255, 255), font=font, anchor="mm")
         
         bio = BytesIO()
         bio.name = 'sticker.webp'
         img.save(bio, 'WEBP')
         bio.seek(0)
         return bio
-    except:
+    except Exception as e:
+        print(f"Sticker error: {e}")
         return None
 
-def get_prayer_times_jaafari(city, country="Iraq"):
+# إصلاح جلب مواقيت الصلاة
+def get_prayer_times_jaafari(city_en):
     try:
-        # method=0 يعتمد الحساب الجعفري (Institute of Geophysics, University of Tehran)
-        url = f"http://api.aladhan.com/v1/timingsByCity?city={city}&country={country}&method=0"
-        res = requests.get(url, timeout=5)
+        headers = {"User-Agent": "Mozilla/5.0"}
+        # method=0 للجعفري (جامعة تهران)
+        url = f"http://api.aladhan.com/v1/timingsByCity?city={city_en}&country=Iraq&method=0"
+        res = requests.get(url, headers=headers, timeout=8)
         if res.status_code == 200:
-            timings = res.json()['data']['timings']
-            return timings
-    except:
-        pass
+            return res.json()['data']['timings']
+    except Exception as e:
+        print(f"Prayer API Error: {e}")
     return None
 
 def recognize_song_audd(audio_bytes):
     try:
-        data = {
-            'api_token': 'test',
-            'return': 'apple_music,spotify',
-        }
-        files = {
-            'file': audio_bytes,
-        }
+        data = {'api_token': 'test', 'return': 'apple_music,spotify'}
+        files = {'file': audio_bytes}
         res = requests.post('https://api.audd.io/', data=data, files=files, timeout=10)
         if res.status_code == 200:
             result = res.json()
@@ -435,7 +398,6 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-
     chat_id = query.message.chat_id
     data = query.data
 
@@ -457,24 +419,24 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
     elif data.startswith("q_"):
         req = user_requests.get(chat_id)
         quality_code = data.replace("q_", "").replace("audio_", "")
-        
         if req:
             url = req.get("url")
             is_audio = req.get("is_audio", False)
             await context.bot.edit_message_text(f"⏳ *جاري التحميل المباشر والسريع...*\n\n{DEV_SIGNATURE}", chat_id=chat_id, message_id=query.message.message_id, parse_mode='Markdown')
-
             success = await process_media_download(context, chat_id, url, is_audio, quality=quality_code)
-
             if not success:
                 await context.bot.send_message(chat_id, f"⚠️ *تعذر التحميل، تأكد من صحة الرابط أو جرب رابطاً آخر.*\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
             user_requests.pop(chat_id, None)
 
     elif data.startswith("pray_"):
-        city = data.split("_")[1]
-        timings = get_prayer_times_jaafari(city, country="Iraq")
+        parts = data.split("_")
+        city_en = parts[1]
+        city_ar = parts[2]
+        
+        timings = get_prayer_times_jaafari(city_en)
         if timings:
             text = (
-                f"🕌 *مواقيت الصلاة الشرعية (المذهب الجعفري) - {city}:*\n\n"
+                f"🕌 *مواقيت الصلاة الشرعية (المذهب الجعفري) - {city_ar}:*\n\n"
                 f"🌅 *أذان الفجر:* `{timings['Fajr']}`\n"
                 f"☀️ *الشروق:* `{timings['Sunrise']}`\n"
                 f"☀️ *أذان الظهر:* `{timings['Dhuhr']}`\n"
@@ -498,10 +460,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         return
     elif text == "🔍 صيد يوزرات تيليجرام الحقيقي (صاروخي)":
         await update.message.reply_text(f"🔍 *اختر صيغة الصيد المطلوبة:*\n\n{DEV_SIGNATURE}", reply_markup=get_hunt_types_keyboard(), parse_mode='Markdown')
-        return
-    elif text == "🤖 المساعد الذكي (أسئلة واستفسارات)":
-        user_state[chat_id] = "ai_chat"
-        await update.message.reply_text(f"🤖 *مرحباً بك! اكتب سؤالك أو الاستفسار الذي تريد الإجابة عليه الآن:*\n\n{DEV_SIGNATURE}", reply_markup=get_main_menu(), parse_mode='Markdown')
         return
     elif text == "📚 ملف أوكسفورد":
         kb = InlineKeyboardMarkup([[InlineKeyboardButton("📥 اضغط هنا لتنزيل ملف أوكسفورد", url=OXFORD_PDF_URL)]])
@@ -540,25 +498,17 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
             await update.message.reply_text("⚠️ تعذر إنشاء الملصق، حاول مجدداً.")
         return
 
-    if user_state.get(chat_id) == "ai_chat":
-        user_state.pop(chat_id, None)
-        ans = ask_ai_assistant(text)
-        await update.message.reply_text(f"🤖 *الرد:*\n\n{ans}\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
-        return
-
     if user_state.get(chat_id) == "waiting_name":
         user_state.pop(chat_id, None)
-        name = text
         decorations = [
-            f"⚡ ⦗ {name} ⦗ ⚡",
-            f"💎 »» {name} »« 💎",
-            f"🔥 ⦇ 𝄠 {name} 𝄠 ⦆ 🔥",
-            f"🌟 ༺ {name} ༻ 🌟",
-            f"🦅 ⫷ {name} ⫸ 🦅",
-            f"👑 𓏺 {name} 𓏺 👑"
+            f"⚡ ⦗ {text} ⦗ ⚡",
+            f"💎 »» {text} »« 💎",
+            f"🔥 ⦇ 𝄠 {text} 𝄠 ⦆ 🔥",
+            f"🌟 ༺ {text} ༻ 🌟",
+            f"🦅 ⫷ {text} ⫸ 🦅",
+            f"👑 𓏺 {text} 𓏺 👑"
         ]
-        final_response = f"✨ *إليك قائمة الزخارف الاحترافية لاسمك:*\n\n" + "\n".join(decorations) + f"\n\n{DEV_SIGNATURE}"
-        await update.message.reply_text(final_response, parse_mode='Markdown')
+        await update.message.reply_text(f"✨ *إليك قائمة الزخارف الاحترافية لاسمك:*\n\n" + "\n".join(decorations) + f"\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
         return
 
     urls = re.findall(r'https?://[^\s]+', text)
@@ -594,8 +544,8 @@ async def handle_photo_messages(update: Update, context: ContextTypes.DEFAULT_TY
             if out_bytes:
                 await context.bot.send_document(chat_id, document=BytesIO(out_bytes), filename="no_bg.png", caption=f"🖼 *تم تفريغ الصورة بنجاح!*\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
             else:
-                await update.message.reply_text("⚠️ تعذر إزالة الخلفية، جرب صورة أخرى.")
-        except Exception as e:
+                await update.message.reply_text("⚠️ تعذر إزالة الخلفية، انتهت صلاحية المفتاح التجريبي لـ remove.bg.")
+        except:
             await update.message.reply_text("⚠️ حدث خطأ في معالجة الصورة.")
         return
 
@@ -612,7 +562,6 @@ async def handle_photo_messages(update: Update, context: ContextTypes.DEFAULT_TY
 async def handle_audio_voice_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     await update.message.reply_text(f"🔍 *جاري البحث عن اسم الأغنية...*\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
-    
     try:
         audio_obj = update.message.voice or update.message.audio
         if audio_obj:
@@ -624,8 +573,8 @@ async def handle_audio_voice_messages(update: Update, context: ContextTypes.DEFA
                 search_url = f"https://www.youtube.com/results?search_query={yt_query.replace(' ', '+')}"
                 await update.message.reply_text(f"{res}\n\n🔗 [ابحث عنها في يوتيوب]({search_url})\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
             else:
-                await update.message.reply_text(f"⚠️ لم أستطع التعرف على الأغنية، تأكد من وضوح الصوت وخلوه من الضوضاء.\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
-    except Exception as e:
+                await update.message.reply_text(f"⚠️ لم أستطع التعرف على الأغنية، تأكد من وضوح الصوت.\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
+    except:
         await update.message.reply_text("⚠️ حدث خطأ أثناء المعالجة.")
 
 if __name__ == '__main__':
