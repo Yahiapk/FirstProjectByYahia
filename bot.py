@@ -89,16 +89,18 @@ def generate_target_username(htype):
         d1, d2 = random.choice(digits), random.choice(digits)
         return f"{c1}{c2}_{d1}{d2}"
 
+# فحص دقيق للتيليجرام لمنع الحظر والصفنات
 def check_telegram_username_real(username):
     try:
         url = f"https://t.me/{username}"
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
         }
-        res = requests.get(url, headers=headers, timeout=2.0)
+        res = requests.get(url, headers=headers, timeout=1.5)
         if res.status_code == 200:
             text = res.text
-            if "tgme_page_extra" not in text and "Preview channel" not in text and "Send Message" not in text:
+            # إذا الصفحات ما بيها زر مراسلة ولا إكسترا يعني اليوزر صدك متاح 100%
+            if "tgme_page_extra" not in text and "Preview channel" not in text and "Send Message" not in text and "tgme_page_title" not in text:
                 return True
     except:
         pass
@@ -115,13 +117,14 @@ async def hunt_username_task(context: ContextTypes.DEFAULT_TYPE, chat_id: int, m
         test_user = generate_target_username(htype)
         current_time = time.time()
 
-        if current_time - last_edit_time > 3.0:
+        # تحديث الرسالة كل ثانيتين حتى ما ينحظر البوت من التيليجرام
+        if current_time - last_edit_time > 2.0:
             matrix_code = generate_random_matrix()
             anim_text = (
-                f"⚡ *جاري الصيد والتحقق الحقيقي...*\n\n"
+                f"⚡ *جاري الصيد السريع والصاروخي...*\n\n"
                 f"🟢 `{matrix_code}`\n"
-                f"🔍 فحص اليوزر: `@{test_user}`\n"
-                f"📊 المحاولات: `{attempts}`"
+                f"🔍 نفحص هسة: `@{test_user}`\n"
+                f"📊 عدد المحاولات: `{attempts}`"
                 f"{DEV_SIGNATURE}"
             )
             try:
@@ -130,20 +133,24 @@ async def hunt_username_task(context: ContextTypes.DEFAULT_TYPE, chat_id: int, m
             except:
                 pass
 
-        if check_telegram_username_real(test_user):
+        # فحص اليوزر بـ Thread منفصل حتى ما يوقف البوت
+        is_available = await asyncio.to_thread(check_telegram_username_real, test_user)
+        if is_available:
             found_username = test_user
-            break
+            break # إيقاف البحث فوراً عند إيجاد اليوزر!
 
         await asyncio.sleep(0.01)
 
     elapsed_time = round(time.time() - start_time, 2)
     final_matrix = generate_random_matrix()
+    
+    # النتيجة النهائية مع عبارة المطور يحيى
     result_text = (
-        f"🎉 *تم صيد يوزر متاح حقيقي 100%!* ✨\n\n"
+        f"🎉 *تم ايجاد يوزر متاح، ويحيى عمك وعم ولدك!* 👑🔥\n\n"
         f"🟢 `{final_matrix}`\n"
-        f"📌 اليوزر المتاح: `@{found_username}`\n"
-        f"⏱ المستغرق: `{elapsed_time}` ثانية\n"
-        f"📊 المحاولات: `{attempts}`\n"
+        f"📌 اليوزر الصيد: `@{found_username}`\n"
+        f"⏱ الوقت المستغرق: `{elapsed_time}` ثانية\n"
+        f"📊 عدد المحاولات: `{attempts}`\n"
         f"🔗 الرابط المباشر: https://t.me/{found_username}"
         f"{DEV_SIGNATURE}"
     )
@@ -264,7 +271,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         return
     elif text == "🎨 تحويل الصورة إلى رسم بالنقاط":
         user_state[chat_id] = "ascii"
-        await update.message.reply_text(f"🎨 *أرسل أي صورة الآن لتحويلها إلى رسم فني بالنقاط:*{DEV_SIGNATURE}", reply_markup=get_main_menu(), parse_mode='Markdown')
+        await update.message.reply_text(f"🎨 *أرسل أي صورة الآن لتحويلها إلى رسم فني بالنقاط:*{DEV_SIGNATURE}", parse_mode='Markdown')
         return
 
     if user_state.get(chat_id) == "waiting_name":
@@ -285,7 +292,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
     urls = re.findall(r'https?://[^\s]+', text)
     if urls:
         target_url = urls[0]
-        # دعم Pinterest أو التحميل المباشر للصور/الفيديوهات
         if "pinterest.com" in target_url or "pin.it" in target_url:
             await update.message.reply_text(f"⏳ *جاري التحميل من Pinterest...*{DEV_SIGNATURE}", parse_mode='Markdown')
             asyncio.create_task(process_media_download(context, chat_id, target_url, False))
@@ -299,7 +305,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
             if is_audio:
                 await update.message.reply_text(f"🎵 *اختر جودة الصوت:*{DEV_SIGNATURE}", reply_markup=get_audio_quality_keyboard(), parse_mode='Markdown')
             else:
-                await update.message.reply_text(f"🎬 *اختر دقة الفيديو:*{DEV_SIGNATURE}", reply_markup=get_video_quality_keyboard(), parse_mode='Markdown')
+                await update.message.reply_text(f"🎬 *اختر دقة الفيديو:*{DEV_SIGNATURE}", parse_mode='Markdown')
         else:
             user_requests[chat_id] = {"url": target_url, "is_audio": False}
             await update.message.reply_text(f"📥 *اختر نوع التحميل:*{DEV_SIGNATURE}", reply_markup=get_media_type_keyboard(), parse_mode='Markdown')
@@ -331,5 +337,5 @@ if __name__ == '__main__':
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo_messages))
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_text_messages))
 
-    print("Bot is running smoothly with Pinterest support...")
+    print("Bot is running fast & smooth...")
     app.run_polling()
