@@ -4,6 +4,4 @@ pytubefix
 requests
 Pillow
 yt-dlp
-easyocr
-torch
-torchvision
+pytesseract
