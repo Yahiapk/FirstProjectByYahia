@@ -154,29 +154,44 @@ async def hunt_username_task(context: ContextTypes.DEFAULT_TYPE, chat_id: int, m
     except:
         await context.bot.send_message(chat_id, result_text, reply_markup=get_hunt_types_keyboard(), parse_mode='Markdown')
 
+# نظام التنزيل الخرافي الجديد مع تخطي الحظر
 def download_media_direct(url, is_audio, quality="best"):
     filename = f"dl_{int(time.time())}_{random.randint(1000,9999)}"
+    
     ydl_opts = {
         'outtmpl': f'{filename}.%(ext)s',
         'quiet': True,
         'no_warnings': True,
+        'nocheckcertificate': True,
+        'ignoreerrors': False,
+        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
     }
     
     if is_audio:
         ydl_opts['format'] = 'bestaudio/best'
     else:
+        # صيغ مرنة تمنع فشل التحميل
         if quality == "360":
-            ydl_opts['format'] = 'bestvideo[height<=360]+bestaudio/best[height<=360]/best'
+            ydl_opts['format'] = 'bestvideo[height<=360]+bestaudio/best[height<=360]/best[height<=360]/best'
         elif quality == "720":
-            ydl_opts['format'] = 'bestvideo[height<=720]+bestaudio/best[height<=720]/best'
+            ydl_opts['format'] = 'bestvideo[height<=720]+bestaudio/best[height<=720]/best[height<=720]/best'
         elif quality == "1080":
-            ydl_opts['format'] = 'bestvideo[height<=1080]+bestaudio/best[height<=1080]/best'
+            ydl_opts['format'] = 'bestvideo[height<=1080]+bestaudio/best[height<=1080]/best[height<=1080]/best'
         else:
             ydl_opts['format'] = 'bestvideo+bestaudio/best'
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=True)
+        if 'entries' in info and len(info['entries']) > 0:
+            info = info['entries'][0]
         filename_actual = ydl.prepare_filename(info)
+        
+        # التأكد من وجود الملف أو صيغته المحولة
+        if not os.path.exists(filename_actual):
+            base = os.path.splitext(filename_actual)[0]
+            for ext in ['.mp4', '.mkv', '.webm', '.mp3', '.m4a', '.jpg', '.png', '.webp']:
+                if os.path.exists(base + ext):
+                    return base + ext
         return filename_actual
 
 async def process_media_download(context: ContextTypes.DEFAULT_TYPE, chat_id: int, url: str, is_audio: bool, quality: str = "best"):
@@ -186,8 +201,8 @@ async def process_media_download(context: ContextTypes.DEFAULT_TYPE, chat_id: in
             ext = os.path.splitext(file_path)[1].lower()
             with open(file_path, 'rb') as media_file:
                 if ext in ['.jpg', '.jpeg', '.png', '.webp']:
-                    await context.bot.send_photo(chat_id, media_file, caption=f"📌 *Pinterest | تم تنزيل الصورة بنجاح*{DEV_SIGNATURE}", parse_mode='Markdown')
-                elif is_audio:
+                    await context.bot.send_photo(chat_id, media_file, caption=f"📌 *تم تنزيل الصورة بنجاح*{DEV_SIGNATURE}", parse_mode='Markdown')
+                elif is_audio or ext in ['.mp3', '.m4a', '.wav', '.ogg']:
                     await context.bot.send_audio(chat_id, media_file, caption=f"🎵 *تم تحميل الصوت بنجاح*{DEV_SIGNATURE}", parse_mode='Markdown')
                 else:
                     await context.bot.send_video(chat_id, media_file, caption=f"🎬 *تم تحميل الفيديو بنجاح*{DEV_SIGNATURE}", parse_mode='Markdown')
@@ -198,7 +213,7 @@ async def process_media_download(context: ContextTypes.DEFAULT_TYPE, chat_id: in
                 pass
             return True
     except Exception as e:
-        print(f"Download Error: {e}")
+        print(f"Download Error Log: {e}")
     return False
 
 def convert_image_to_ascii(image_bytes):
@@ -258,7 +273,7 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
             success = await process_media_download(context, chat_id, url, is_audio, quality=quality_code)
 
             if not success:
-                await context.bot.send_message(chat_id, f"⚠️ *تعذر التحميل، تأكد من صحة الرابط.*{DEV_SIGNATURE}", parse_mode='Markdown')
+                await context.bot.send_message(chat_id, f"⚠️ *تعذر التحميل، تأكد من صحة الرابط أو جرب رابطاً آخر.*{DEV_SIGNATURE}", parse_mode='Markdown')
             user_requests.pop(chat_id, None)
 
 async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -298,7 +313,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
     urls = re.findall(r'https?://[^\s]+', text)
     if urls:
         target_url = urls[0]
-        # دعم بينترست المباشر
         if "pinterest.com" in target_url or "pin.it" in target_url:
             await update.message.reply_text(f"⏳ *جاري التحميل من Pinterest...*{DEV_SIGNATURE}", parse_mode='Markdown')
             asyncio.create_task(process_media_download(context, chat_id, target_url, False))
