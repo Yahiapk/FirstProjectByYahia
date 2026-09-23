@@ -190,8 +190,6 @@ async def hunt_username_task(context: ContextTypes.DEFAULT_TYPE, chat_id: int, m
         await asyncio.sleep(0.02)
 
     elapsed_time = round(time.time() - start_time, 2)
-    
-    # طباعة اليوزر بالـ Logs مالت السيرفر كنسخة احتياطية آمنة جداً
     print(f"🔥 [SUCCESS HUNTED USERNAME]: @{found_username} | Attempts: {attempts} | Time: {elapsed_time}s")
 
     sword_final = build_sword_with_info(found_username, attempts, elapsed_time)
@@ -202,7 +200,6 @@ async def hunt_username_task(context: ContextTypes.DEFAULT_TYPE, chat_id: int, m
         f"{sword_final}"
     )
 
-    # إرسال الرسالة بشكل مباشر وبدون حذف أي شيء سابق
     await context.bot.send_message(
         chat_id=chat_id, 
         text=caption_text, 
@@ -339,17 +336,21 @@ def convert_image_to_ascii(image_bytes):
     except:
         return None
 
+# دالة OCR المحسّنة والقوية جداً
 def extract_text_from_image_bytes(image_bytes):
     try:
         payload = {
             'apikey': 'helloworld',
             'language': 'ara',
-            'isOverlayRequired': False
+            'isOverlayRequired': False,
+            'detectOrientation': True,
+            'scale': True,
+            'OCREngine': 2  # المحرك الثاني أسرع وأدق جداً مع اللغة العربية
         }
         files = {
             'file': ('image.jpg', image_bytes, 'image/jpeg')
         }
-        res = requests.post('https://api.ocr.space/parse/image', files=files, data=payload, timeout=20)
+        res = requests.post('https://api.ocr.space/parse/image', files=files, data=payload, timeout=25)
         result = res.json()
         
         parsed_results = result.get('ParsedResults', [])
@@ -357,8 +358,19 @@ def extract_text_from_image_bytes(image_bytes):
             text = parsed_results[0].get('ParsedText', '').strip()
             if text:
                 return text
+        
+        # إذا لم يجد مع المحرك 2 نجرب المحرك 1 كخيار احتياطي
+        payload['OCREngine'] = 1
+        res = requests.post('https://api.ocr.space/parse/image', files=files, data=payload, timeout=25)
+        result = res.json()
+        parsed_results = result.get('ParsedResults', [])
+        if parsed_results:
+            text = parsed_results[0].get('ParsedText', '').strip()
+            if text:
+                return text
+
     except Exception as e:
-        print(f"OCR Error: {e}")
+        print(f"OCR Error Log: {e}")
     return None
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -429,7 +441,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         return
     elif text == "🎨 تحويل الصورة إلى رسم بالنقاط":
         user_state[chat_id] = "ascii"
-        await update.message.reply_text(f"🎨 *أرسل أي صورة الآن لتحويلها إلى رسم فني بالنقاط:*\n\n{DEV_SIGNATURE}", reply_markup=get_main_menu(), parse_mode='Markdown')
+        await update.message.reply_text(f"🎨 *أرسل أي صورة الآن لتحويلها إلى رسم فني بالنقاط:*\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
         return
 
     if user_state.get(chat_id) == "waiting_name":
@@ -483,7 +495,7 @@ async def handle_photo_messages(update: Update, context: ContextTypes.DEFAULT_TY
                 resp = f"📝 *النص المستخرج من الصورة:*\n\n```text\n{extracted_text}\n```\n\n{DEV_SIGNATURE}"
                 await update.message.reply_text(resp, parse_mode='Markdown')
             else:
-                await update.message.reply_text(f"⚠️ لم أتمكن من العثور على نص واضح بالصورة.\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
+                await update.message.reply_text(f"⚠️ لم أتمكن من العثور على نص واضح بالصورة، يرجى التأكد من وضوح الكلام وإرسالها مجدداً.\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
         except Exception as e:
             print(f"Photo handle OCR error: {e}")
             await update.message.reply_text(f"⚠️ حدث خطأ أثناء معالجة الصورة.\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
