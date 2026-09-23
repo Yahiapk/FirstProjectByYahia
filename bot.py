@@ -10,11 +10,12 @@ from PIL import Image
 from io import BytesIO
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
 
+# حط التوكن مالتك هنا
 TELEGRAM_TOKEN = "8708302621:AAFAKBSzXgbq7p5fMimAIJuqqVEcIivTFmw"
 ADMIN_ID = 1283009799
 
-# تفعيل الـ Threaded بالبوت
-bot = telebot.TeleBot(TELEGRAM_TOKEN, threaded=True)
+# تشغيل البوت مع تفعيل الـ Threads حتى ما يوكف ويستقبل اكثر من طلب
+bot = telebot.TeleBot(TELEGRAM_TOKEN, threaded=True, num_threads=10)
 BOT_ID = int(TELEGRAM_TOKEN.split(':')[0])
 
 user_requests = {}
@@ -78,19 +79,15 @@ def generate_random_matrix():
 def generate_target_username(htype):
     letters = string.ascii_lowercase
     digits = string.digits
-    
     if htype == "1":
-        # x1_x1 -> حرف رقم _ حرف رقم
         c1, c2 = random.choice(letters), random.choice(letters)
         d1, d2 = random.choice(digits), random.choice(digits)
         return f"{c1}{d1}_{c2}{d2}"
     elif htype == "2":
-        # x1_1x -> حرف رقم _ رقم حرف
         c1, c2 = random.choice(letters), random.choice(letters)
         d1, d2 = random.choice(digits), random.choice(digits)
         return f"{c1}{d1}_{d2}{c2}"
     else:
-        # xx_11 -> حرفين _ رقمين
         c1, c2 = random.choice(letters), random.choice(letters)
         d1, d2 = random.choice(digits), random.choice(digits)
         return f"{c1}{c2}_{d1}{d2}"
@@ -114,13 +111,15 @@ def hunt_username_thread(chat_id, message_id, htype):
     found_username = None
     attempts = 0
     start_time = time.time()
+    last_edit_time = 0  # متغير لتقليل سرعة تعديل الرسالة لمنع حظر التيليجرام
     
     while True:
         attempts += 1
         test_user = generate_target_username(htype)
+        current_time = time.time()
         
-        # تحديث النص للمستخدم كل 4 محاولات لضمان عدم حصول Rate Limit من التيليجرام
-        if attempts % 4 == 0 or attempts == 1:
+        # نعدل الرسالة كل 2.5 ثانية فقط حتى نتجنب الـ Rate Limit وتبقى الدائرة تفتر
+        if current_time - last_edit_time > 2.5:
             matrix_code = generate_random_matrix()
             anim_text = (
                 f"⚡ *جاري الصيد والتحقق الحقيقي...*\n\n"
@@ -131,14 +130,15 @@ def hunt_username_thread(chat_id, message_id, htype):
             )
             try:
                 bot.edit_message_text(anim_text, chat_id=chat_id, message_id=message_id, parse_mode='Markdown')
-            except:
-                pass
+                last_edit_time = time.time()
+            except Exception as e:
+                pass # تجاهل الأخطاء إذا التيليجرام قفل التعديل مؤقتاً
 
         if check_telegram_username_real(test_user):
             found_username = test_user
             break
             
-        time.sleep(0.05) # حماية من الحظر وضمان السرعة العالية
+        time.sleep(0.01) # سرعة الفحص
 
     elapsed_time = round(time.time() - start_time, 2)
     final_matrix = generate_random_matrix()
@@ -175,7 +175,7 @@ def process_tiktok(chat_id, url, is_audio):
 def process_instagram(chat_id, url, is_audio):
     try:
         payload = {"url": url, "videoQuality": "max", "downloadMode": "audio" if is_audio else "auto"}
-        res = requests.post("https://co.wuk.sh/api/json", json=payload, headers={"Accept": "application/json", "Content-Type": "application/json"}, timeout=12)
+        res = requests.post("https://co.wuk.sh/api/json", json=payload, headers={"Accept": "application/json", "Content-Type": "application/json"}, timeout=15)
         if res.status_code == 200:
             dl_url = res.json().get("url")
             if dl_url:
@@ -193,7 +193,7 @@ def process_youtube(chat_id, url, is_audio, quality):
     payload = {"url": url, "videoQuality": quality if not is_audio else "max", "audioFormat": "mp3", "downloadMode": "audio" if is_audio else "auto"}
     for server in servers:
         try:
-            res = requests.post(server, json=payload, headers={"Accept": "application/json", "Content-Type": "application/json"}, timeout=12)
+            res = requests.post(server, json=payload, headers={"Accept": "application/json", "Content-Type": "application/json"}, timeout=15)
             if res.status_code == 200:
                 dl_url = res.json().get("url")
                 if dl_url:
@@ -222,9 +222,78 @@ def convert_image_to_ascii(image_bytes):
     except:
         return None
 
+@bot.callback_query_handler(func=lambda call: True)
+def handle_callback_query(call):
+    # الحل الجذري لمشكلة التحميل: الاستجابة الفورية وتخزينها بالذاكرة
+    try:
+        bot.answer_callback_query(call.id, text="⚡ جاري التنفيذ...", show_alert=False, cache_time=2)
+    except Exception as e:
+        pass # اذا كان الطلب قديم نتجاوزه بدون مشاكل
+
+    chat_id = call.message.chat.id
+    data = call.data
+
+    if data.startswith("hunt_type_"):
+        htype = data.split("_")[-1]
+        # تشغيل الصيد بـ Thread منفصل حتى ما يوكف البوت
+        threading.Thread(target=hunt_username_thread, args=(chat_id, call.message.message_id, htype)).start()
+
+    elif data.startswith("setmode_"):
+        mode = data.replace("setmode_", "")
+        user_selected_mode[chat_id] = mode
+        try:
+            bot.send_message(chat_id, f"📥 أرسل الآن الرابط المطلوب للتحميل الفوري:{DEV_SIGNATURE}", parse_mode='Markdown')
+        except:
+            pass
+
+    elif data == "type_video":
+        try:
+            bot.edit_message_text(f"🎬 *اختر دقة الفيديو:*{DEV_SIGNATURE}", chat_id=chat_id, message_id=call.message.message_id, reply_markup=get_video_quality_keyboard(), parse_mode='Markdown')
+        except:
+            pass
+            
+    elif data == "type_audio":
+        try:
+            bot.edit_message_text(f"🎵 *اختر جودة الصوت:*{DEV_SIGNATURE}", chat_id=chat_id, message_id=call.message.message_id, reply_markup=get_audio_quality_keyboard(), parse_mode='Markdown')
+        except:
+            pass
+
+    elif data.startswith("q_"):
+        req = user_requests.get(chat_id)
+        if req:
+            url, is_audio = req.get("url"), req.get("is_audio", False)
+            q_map = {"q_360": "360", "q_720": "720", "q_1080": "1080", "q_max": "max", "q_audio_128": "128", "q_audio_320": "320"}
+            selected_q = q_map.get(data, "max")
+            
+            try:
+                bot.edit_message_text(f"⏳ *جاري التحميل ومعالجة الرابط، انتظر ثواني...*{DEV_SIGNATURE}", chat_id=chat_id, message_id=call.message.message_id, parse_mode='Markdown')
+            except:
+                pass
+            
+            def process_download():
+                success = False
+                if "instagram.com" in url:
+                    success = process_instagram(chat_id, url, is_audio)
+                elif "tiktok.com" in url:
+                    success = process_tiktok(chat_id, url, is_audio)
+                else:
+                    success = process_youtube(chat_id, url, is_audio, selected_q)
+
+                if not success:
+                    try:
+                        bot.send_message(chat_id, f"⚠️ *تعذر التحميل، تأكد من صحة الرابط أو جرب رابط ثاني.*{DEV_SIGNATURE}", parse_mode='Markdown')
+                    except:
+                        pass
+                user_requests.pop(chat_id, None)
+
+            threading.Thread(target=process_download).start()
+
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
-    bot.reply_to(message, f"🌟 *أهلاً بك يا غالي في بوت الخدمات الصاروخي* 🚀\n\nاختر الخدمة المطلوبة من الأزرار بالأسفل:{DEV_SIGNATURE}", reply_markup=get_main_menu(), parse_mode='Markdown')
+    try:
+        bot.reply_to(message, f"🌟 *أهلاً بك يا غالي في بوت الخدمات الصاروخي* 🚀\n\nاختر الخدمة المطلوبة من الأزرار بالأسفل:{DEV_SIGNATURE}", reply_markup=get_main_menu(), parse_mode='Markdown')
+    except:
+        pass
 
 @bot.message_handler(func=lambda message: message.text == "📥 تنزيل الفيديوهات والصوتيات (يوتيوب، تيكتوك، انستا)")
 def menu_download(message):
@@ -244,67 +313,18 @@ def menu_ascii(message):
     user_state[message.chat.id] = "ascii"
     bot.reply_to(message, f"🎨 *أرسل أي صورة الآن لتحويلها إلى رسم فني بالنقاط:*{DEV_SIGNATURE}", reply_markup=get_main_menu(), parse_mode='Markdown')
 
-@bot.callback_query_handler(func=lambda call: True)
-def handle_callback_query(call):
-    # إجابة فورية للأزرار لإلغاء دائرة التحميل الـ Loading في التيليجرام فوراً
-    try:
-        bot.answer_callback_query(call.id)
-    except:
-        pass
-
-    chat_id = call.message.chat.id
-    data = call.data
-
-    if data.startswith("hunt_type_"):
-        htype = data.split("_")[-1]
-        threading.Thread(target=hunt_username_thread, args=(chat_id, call.message.message_id, htype)).start()
-
-    elif data.startswith("setmode_"):
-        mode = data.replace("setmode_", "")
-        user_selected_mode[chat_id] = mode
-        bot.send_message(chat_id, f"📥 أرسل الآن الرابط المطلوب للتحميل الفوري:{DEV_SIGNATURE}", parse_mode='Markdown')
-
-    elif data == "type_video":
-        bot.send_message(chat_id, f"🎬 *اختر دقة الفيديو:*{DEV_SIGNATURE}", reply_markup=get_video_quality_keyboard(), parse_mode='Markdown')
-    elif data == "type_audio":
-        bot.send_message(chat_id, f"🎵 *اختر جودة الصوت:*{DEV_SIGNATURE}", reply_markup=get_audio_quality_keyboard(), parse_mode='Markdown')
-
-    elif data.startswith("q_"):
-        req = user_requests.get(chat_id)
-        if req:
-            url, is_audio = req.get("url"), req.get("is_audio", False)
-            q_map = {"q_360": "360", "q_720": "720", "q_1080": "1080", "q_max": "max", "q_audio_128": "128", "q_audio_320": "320"}
-            selected_q = q_map.get(data, "max")
-            
-            bot.edit_message_text(f"⏳ *جاري التحميل...*{DEV_SIGNATURE}", chat_id=chat_id, message_id=call.message.message_id, parse_mode='Markdown')
-            
-            def process_download():
-                success = False
-                if "instagram.com" in url:
-                    success = process_instagram(chat_id, url, is_audio)
-                elif "tiktok.com" in url:
-                    success = process_tiktok(chat_id, url, is_audio)
-                else:
-                    success = process_youtube(chat_id, url, is_audio, selected_q)
-
-                if not success:
-                    bot.send_message(chat_id, f"⚠️ *تعذر التحميل، تأكد من صحة الرابط.*{DEV_SIGNATURE}", parse_mode='Markdown')
-                user_requests.pop(chat_id, None)
-
-            threading.Thread(target=process_download).start()
-
 @bot.message_handler(content_types=['photo'])
 def handle_photos(message):
     chat_id = message.chat.id
-    bot.send_message(chat_id, f"🎨 *جاري تحويل الصورة إلى رسم بالنقاط...*{DEV_SIGNATURE}", parse_mode='Markdown')
     try:
+        bot.send_message(chat_id, f"🎨 *جاري تحويل الصورة إلى رسم بالنقاط...*{DEV_SIGNATURE}", parse_mode='Markdown')
         file_info = bot.get_file(message.photo[-1].file_id)
         downloaded = bot.download_file(file_info.file_path)
         res = convert_image_to_ascii(downloaded)
         if res:
             bot.reply_to(message, f"✨ *النتيجة:*\n\n{res}{DEV_SIGNATURE}", parse_mode='Markdown')
     except:
-        bot.reply_to(message, f"⚠️ حدث خطأ بالمعالجة.{DEV_SIGNATURE}", parse_mode='Markdown')
+        bot.reply_to(message, f"⚠️ حدث خطأ بالمعالجة، جرب صورة ثانية.{DEV_SIGNATURE}", parse_mode='Markdown')
 
 @bot.message_handler(func=lambda message: True)
 def handle_all_messages(message):
@@ -326,7 +346,10 @@ def handle_all_messages(message):
             f"👑 𓏺 {name} 𓏺 👑{DEV_SIGNATURE}\n-------------------"
         ]
         final_response = f"✨ *إليك قائمة الزخارف الاحترافية لاسمك:*\n\n" + "\n".join(decorations)
-        bot.reply_to(message, final_response, parse_mode='Markdown')
+        try:
+            bot.reply_to(message, final_response, parse_mode='Markdown')
+        except:
+            pass
         return
 
     urls = re.findall(r'https?://[^\s]+', text)
@@ -336,7 +359,10 @@ def handle_all_messages(message):
             preset = user_selected_mode.get(chat_id)
             is_audio = preset == "insta_audio"
             user_selected_mode.pop(chat_id, None)
-            bot.reply_to(message, f"⏳ *جاري جلب المحتوى من انستغرام...*{DEV_SIGNATURE}", parse_mode='Markdown')
+            try:
+                bot.reply_to(message, f"⏳ *جاري جلب المحتوى من انستغرام...*{DEV_SIGNATURE}", parse_mode='Markdown')
+            except:
+                pass
             threading.Thread(target=process_instagram, args=(chat_id, target_url, is_audio)).start()
             return
         elif "tiktok.com" in target_url or "youtube.com" in target_url or "youtu.be" in target_url:
@@ -354,9 +380,18 @@ def handle_all_messages(message):
                 bot.reply_to(message, f"📥 *اختر نوع التحميل:*{DEV_SIGNATURE}", reply_markup=get_media_type_keyboard(), parse_mode='Markdown')
             return
 
-    bot.reply_to(message, f"يرجى استخدام الأزرار بالأسفل لتنفيذ الخدمات المتاحة 🚀{DEV_SIGNATURE}", parse_mode='Markdown')
+    try:
+        bot.reply_to(message, f"يرجى استخدام الأزرار بالأسفل لتنفيذ الخدمات المتاحة 🚀{DEV_SIGNATURE}", parse_mode='Markdown')
+    except:
+        pass
 
 if __name__ == "__main__":
-    print("Bot is starting polling...")
-    bot.remove_webhook()
-    bot.infinity_polling(skip_pending=True)
+    while True:
+        try:
+            print("Bot is starting polling...")
+            bot.remove_webhook()
+            # تشغيل البوت بدون ما يوكف نهائيا
+            bot.infinity_polling(timeout=10, long_polling_timeout=5)
+        except Exception as e:
+            print(f"Error occurred: {e}")
+            time.sleep(3) # اذا صار خطأ بالسيرفر ينتظر 3 ثواني ويرجع يشتغل
