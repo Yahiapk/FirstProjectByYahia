@@ -5,7 +5,8 @@ import string
 import time
 import asyncio
 import requests
-from PIL import Image, ImageDraw, ImageFont
+from datetime import datetime
+from PIL import Image
 from io import BytesIO
 import yt_dlp
 
@@ -15,6 +16,7 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, Cal
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 ADMIN_ID = int(os.environ.get("ADMIN_ID", "1283009799"))
 RAPIDAPI_KEY = os.environ.get("RAPIDAPI_KEY")
+REMOVEBG_KEY = os.environ.get("REMOVEBG_KEY")  # نضيف مفتاحك المجاني هنا
 
 OXFORD_PDF_URL = "https://drive.google.com/uc?export=download&id=1GqE_PbV4GMUMo6B99sF3v4KtDlErCq7I"
 
@@ -24,12 +26,12 @@ user_state = {}
 
 DEV_SIGNATURE = "💻 Dev: YahiaFadhel"
 
+# القائمة الرئيسية بعد حذف الملصقات
 def get_main_menu():
     keyboard = [
         [KeyboardButton("📥 تنزيل الفيديوهات والصوتيات (يوتيوب، تيكتوك، انستا، بينترست)")],
         [KeyboardButton("🎵 معرفة اسم الأغنية (من البصمة/الصوت)")],
         [KeyboardButton("🖼 إزالة خلفية الصورة (تفريغ)")],
-        [KeyboardButton("🔤 تحويل النص إلى ملصق (Sticker)")],
         [KeyboardButton("⏰ مواقيت الصلاة والأذكار (جعفري)")],
         [KeyboardButton("🔍 صيد يوزرات تيليجرام الحقيقي (صاروخي)")],
         [KeyboardButton("📚 ملف أوكسفورد")],
@@ -97,6 +99,17 @@ def get_prayer_cities_keyboard():
         keyboard.append(row)
     return InlineKeyboardMarkup(keyboard)
 
+# دالة تحويل الوقت من 24 ساعة إلى 12 ساعة (مثلاً 18:00 يصير 6:00 م)
+def format_time_12h(time_str):
+    try:
+        clean_time = time_str.split(" ")[0] # أخذ الوقت الصافي بدون أي إضافات
+        t = datetime.strptime(clean_time, "%H:%M")
+        formatted = t.strftime("%I:%M").lstrip('0') # تحويل وتجريد الصفر الأولي
+        period = "ص" if t.hour < 12 else "م"
+        return f"{formatted} {period}"
+    except:
+        return time_str
+
 def generate_random_matrix():
     bits = ["".join(random.choices("01", k=8)) for _ in range(4)]
     return " ".join(bits)
@@ -104,32 +117,22 @@ def generate_random_matrix():
 def generate_target_username(htype):
     letters = string.ascii_lowercase
     digits = string.digits
-    
     x1, x2, x3, x4 = random.choice(letters), random.choice(letters), random.choice(letters), random.choice(letters)
     d1, d2 = random.choice(digits), random.choice(digits)
 
-    if htype == "1":
-        return f"{x1}{d1}_{d2}{x2}"
-    elif htype == "2":
-        return f"{x1}{x2}_{d1}{d2}"
-    elif htype == "3":
-        return f"{x1}{d1}{x2}{d2}{x3}"
-    elif htype == "4":
-        return f"{x1}{x2}{d1}{d2}{x3}"
-    elif htype == "5":
-        return f"{x1}_{d1}{x2}{d2}"
-    elif htype == "6":
-        return f"{x1}_{x2}{d1}{d2}"
-    elif htype == "7":
-        return f"{x1}_{x2}{x3}{x4}"
+    if htype == "1": return f"{x1}{d1}_{d2}{x2}"
+    elif htype == "2": return f"{x1}{x2}_{d1}{d2}"
+    elif htype == "3": return f"{x1}{d1}{x2}{d2}{x3}"
+    elif htype == "4": return f"{x1}{x2}{d1}{d2}{x3}"
+    elif htype == "5": return f"{x1}_{d1}{x2}{d2}"
+    elif htype == "6": return f"{x1}_{x2}{d1}{d2}"
+    elif htype == "7": return f"{x1}_{x2}{x3}{x4}"
     return f"{x1}{d1}_{d2}{x2}"
 
 def check_telegram_username_real(username):
     try:
         url = f"https://t.me/{username}"
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
-        }
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
         res = requests.get(url, headers=headers, timeout=1.5)
         if res.status_code == 200:
             text = res.text
@@ -145,7 +148,7 @@ def build_sword_with_info(username, attempts, elapsed_time):
     time_str = f"Time: {elapsed_time}s".center(22)
     dev_str = f"{DEV_SIGNATURE}".center(22)
 
-    sword_art = f"""```
+    return f"""```
                   /\\
                  /  \\
                 / /\\ \\
@@ -176,7 +179,6 @@ def build_sword_with_info(username, attempts, elapsed_time):
                  |   |
                 (_____)
 ```"""
-    return sword_art
 
 async def hunt_username_task(context: ContextTypes.DEFAULT_TYPE, chat_id: int, message_id: int, htype: str):
     found_username = None
@@ -220,30 +222,19 @@ async def hunt_username_task(context: ContextTypes.DEFAULT_TYPE, chat_id: int, m
         f"{sword_final}"
     )
 
-    await context.bot.send_message(
-        chat_id=chat_id, 
-        text=caption_text, 
-        reply_markup=get_hunt_types_keyboard(), 
-        parse_mode='Markdown'
-    )
+    await context.bot.send_message(chat_id=chat_id, text=caption_text, reply_markup=get_hunt_types_keyboard(), parse_mode='Markdown')
 
 def download_youtube_rapidapi(url, is_audio):
-    if not RAPIDAPI_KEY:
-        return None
-
+    if not RAPIDAPI_KEY: return None
     filename = f"dl_{int(time.time())}_{random.randint(1000,9999)}"
     ext = "mp3" if is_audio else "mp4"
     file_path = f"{filename}.{ext}"
 
     api_url = "https://youtube-media-downloader.p.rapidapi.com/v2/video/details"
-    headers = {
-        "x-rapidapi-key": RAPIDAPI_KEY,
-        "x-rapidapi-host": "youtube-media-downloader.p.rapidapi.com"
-    }
+    headers = {"x-rapidapi-key": RAPIDAPI_KEY, "x-rapidapi-host": "youtube-media-downloader.p.rapidapi.com"}
     
     video_id_match = re.search(r'(?:v=|\/|shorts\/)([0-9A-Za-z_-]{11})', url)
-    if not video_id_match:
-        return None
+    if not video_id_match: return None
     video_id = video_id_match.group(1)
 
     try:
@@ -251,15 +242,12 @@ def download_youtube_rapidapi(url, is_audio):
         if res.status_code == 200:
             data = res.json()
             download_link = None
-            
             if is_audio:
                 audios = data.get("audios", {}).get("items", [])
-                if audios:
-                    download_link = audios[0].get("url")
+                if audios: download_link = audios[0].get("url")
             else:
                 videos = data.get("videos", {}).get("items", [])
-                if videos:
-                    download_link = videos[0].get("url")
+                if videos: download_link = videos[0].get("url")
 
             if download_link:
                 r = requests.get(download_link, stream=True, timeout=120)
@@ -270,14 +258,12 @@ def download_youtube_rapidapi(url, is_audio):
                     return file_path
     except Exception as e:
         print(f"API Download Error: {e}")
-
     return None
 
 def download_media_direct(url, is_audio, quality="best"):
     if "youtube.com" in url or "youtu.be" in url:
         yt_file = download_youtube_rapidapi(url, is_audio)
-        if yt_file and os.path.exists(yt_file):
-            return yt_file
+        if yt_file and os.path.exists(yt_file): return yt_file
 
     filename = f"dl_{int(time.time())}_{random.randint(1000,9999)}"
     ydl_opts = {
@@ -286,36 +272,27 @@ def download_media_direct(url, is_audio, quality="best"):
         'no_warnings': True,
         'nocheckcertificate': True,
         'geo_bypass': True,
-        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
     }
 
     if is_audio:
         ydl_opts['format'] = 'bestaudio/best'
-        ydl_opts['postprocessors'] = [{
-            'key': 'FFmpegExtractAudio',
-            'preferredcodec': 'mp3',
-            'preferredquality': '192',
-        }]
+        ydl_opts['postprocessors'] = [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3', 'preferredquality': '192'}]
     else:
         ydl_opts['format'] = 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best'
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
-            if 'entries' in info and len(info['entries']) > 0:
-                info = info['entries'][0]
+            if 'entries' in info and len(info['entries']) > 0: info = info['entries'][0]
             filename_actual = ydl.prepare_filename(info)
-            
-            if os.path.exists(filename_actual):
-                return filename_actual
+            if os.path.exists(filename_actual): return filename_actual
 
             base = os.path.splitext(filename_actual)[0]
             for ext in ['.mp4', '.mkv', '.webm', '.mp3', '.m4a', '.jpg', '.png', '.webp']:
-                if os.path.exists(base + ext):
-                    return base + ext
+                if os.path.exists(base + ext): return base + ext
     except Exception as e:
-        print(f"yt-dlp fallback error: {e}")
-
+        print(f"yt-dlp error: {e}")
     return None
 
 async def process_media_download(context: ContextTypes.DEFAULT_TYPE, chat_id: int, url: str, is_audio: bool, quality: str = "best"):
@@ -327,17 +304,14 @@ async def process_media_download(context: ContextTypes.DEFAULT_TYPE, chat_id: in
                 if ext in ['.jpg', '.jpeg', '.png', '.webp']:
                     await context.bot.send_photo(chat_id, media_file, caption=f"📌 *تم تنزيل الصورة بنجاح*\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
                 elif is_audio or ext in ['.mp3', '.m4a', '.wav', '.ogg']:
-                    await context.bot.send_audio(chat_id, media_file, caption=f"🎵 *تم تحميل الصوت بنجاح*\n\n{DEV_SIGNATURE}", parse_mode='Markdown', read_timeout=120, write_timeout=120)
+                    await context.bot.send_audio(chat_id, media_file, caption=f"🎵 *تم تحميل الصوت بنجاح*\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
                 else:
-                    await context.bot.send_video(chat_id, media_file, caption=f"🎬 *تم تحميل الفيديو بنجاح*\n\n{DEV_SIGNATURE}", parse_mode='Markdown', read_timeout=120, write_timeout=120)
-            
-            try:
-                os.remove(file_path)
-            except:
-                pass
+                    await context.bot.send_video(chat_id, media_file, caption=f"🎬 *تم تحميل الفيديو بنجاح*\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
+            try: os.remove(file_path)
+            except: pass
             return True
     except Exception as e:
-        print(f"Download Error Log: {e}")
+        print(f"Download Error: {e}")
     return False
 
 def convert_image_to_ascii(image_bytes):
@@ -351,64 +325,31 @@ def convert_image_to_ascii(image_bytes):
         pixels = [chars[p // 25] for p in img.getdata()]
         pixel_str = "".join(pixels)
         ascii_lines = [pixel_str[i:i + new_w] for i in range(0, len(pixel_str), new_w)]
-        joined_lines = "\n".join(ascii_lines)
-        return "```\n" + joined_lines + "\n```"
+        return "```\n" + "\n".join(ascii_lines) + "\n```"
     except:
         return None
 
-# دالة إزالة الخلفية السريعة والمجانية عبر محرك مجاني 100%
+# دالة تفريغ الصور المحدثة
 def remove_background_api(image_bytes):
+    key = REMOVEBG_KEY or "free_demo"
     try:
-        # استخدام API مفرغ مجاني للصور بدون قيود مفاتيح تجارية
         res = requests.post(
-            'https://api.vocalremover.org/v1/remove-bg', # محرك احتياطي خفيف وسريع
-            files={'file': ('image.jpg', image_bytes, 'image/jpeg')},
+            "https://api.remove.bg/v1.0/removebg",
+            files={'image_file': image_bytes},
+            data={'size': 'auto'},
+            headers={'X-Api-Key': key},
             timeout=20
         )
         if res.status_code == 200:
             return res.content
     except Exception as e:
-        print(f"Remove BG error: {e}")
-
-    try:
-        # كخيار ثانوي آمن
-        res2 = requests.post(
-            'https://clipdrop-api.co/remove-background/v1',
-            files={'image_file': ('image.jpg', image_bytes, 'image/jpeg')},
-            headers={'x-api-key': 'free'},
-            timeout=20
-        )
-        if res2.status_code == 200:
-            return res2.content
-    except:
-        pass
-
+        print(f"Remove bg error: {e}")
     return None
-
-def create_text_sticker(text):
-    try:
-        img = Image.new('RGBA', (512, 512), color=(0, 0, 0, 0))
-        d = ImageDraw.Draw(img)
-        d.rounded_rectangle([30, 180, 482, 330], radius=25, fill=(24, 25, 38, 240), outline=(137, 180, 250), width=4)
-        
-        display_text = text if len(text) <= 25 else text[:22] + "..."
-        d.text((256, 255), display_text, fill=(255, 255, 255), anchor="mm")
-        
-        bio = BytesIO()
-        bio.name = 'sticker.webp'
-        img.save(bio, 'WEBP')
-        bio.seek(0)
-        return bio
-    except Exception as e:
-        print(f"Sticker creation error: {e}")
-        return None
 
 def get_prayer_times_jaafari(city_en):
     try:
         url = f"http://api.aladhan.com/v1/timingsByCity?city={city_en}&country=Iraq&method=0"
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
-        }
+        headers = {"User-Agent": "Mozilla/5.0"}
         res = requests.get(url, headers=headers, timeout=10)
         if res.status_code == 200:
             data = res.json()
@@ -420,13 +361,8 @@ def get_prayer_times_jaafari(city_en):
 
 def recognize_song_audd(audio_bytes):
     try:
-        data = {
-            'api_token': 'test',
-            'return': 'apple_music,spotify',
-        }
-        files = {
-            'file': audio_bytes,
-        }
+        data = {'api_token': 'test', 'return': 'apple_music,spotify'}
+        files = {'file': audio_bytes}
         res = requests.post('https://api.audd.io/', data=data, files=files, timeout=10)
         if res.status_code == 200:
             result = res.json()
@@ -448,7 +384,6 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-
     chat_id = query.message.chat_id
     data = query.data
 
@@ -470,14 +405,11 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
     elif data.startswith("q_"):
         req = user_requests.get(chat_id)
         quality_code = data.replace("q_", "").replace("audio_", "")
-        
         if req:
             url = req.get("url")
             is_audio = req.get("is_audio", False)
             await context.bot.edit_message_text(f"⏳ *جاري التحميل المباشر والسريع...*\n\n{DEV_SIGNATURE}", chat_id=chat_id, message_id=query.message.message_id, parse_mode='Markdown')
-
             success = await process_media_download(context, chat_id, url, is_audio, quality=quality_code)
-
             if not success:
                 await context.bot.send_message(chat_id, f"⚠️ *تعذر التحميل، تأكد من صحة الرابط أو جرب رابطاً آخر.*\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
             user_requests.pop(chat_id, None)
@@ -491,13 +423,13 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
         if timings:
             text = (
                 f"🕌 *مواقيت الصلاة الشرعية (المذهب الجعفري) - {city_ar}:*\n\n"
-                f"🌅 *أذان الفجر:* `{timings['Fajr']}`\n"
-                f"☀️ *الشروق:* `{timings['Sunrise']}`\n"
-                f"☀️ *أذان الظهر:* `{timings['Dhuhr']}`\n"
-                f"🌤 *أذان العصر:* `{timings['Asr']}`\n"
-                f"🌆 *أذان المغرب الشرعي:* `{timings['Maghrib']}`\n"
-                f"🌌 *أذان العشاء:* `{timings['Isha']}`\n"
-                f"🌙 *منتصف الليل الشرعي:* `{timings['Midnight']}`\n\n"
+                f"🌅 *أذان الفجر:* `{format_time_12h(timings['Fajr'])}`\n"
+                f"☀️ *الشروق:* `{format_time_12h(timings['Sunrise'])}`\n"
+                f"☀️ *أذان الظهر:* `{format_time_12h(timings['Dhuhr'])}`\n"
+                f"🌤 *أذان العصر:* `{format_time_12h(timings['Asr'])}`\n"
+                f"🌆 *أذان المغرب الشرعي:* `{format_time_12h(timings['Maghrib'])}`\n"
+                f"🌌 *أذان العشاء:* `{format_time_12h(timings['Isha'])}`\n"
+                f"🌙 *منتصف الليل الشرعي:* `{format_time_12h(timings['Midnight'])}`\n\n"
                 f"🤲 *من الأذكار:* (اللَّهُمَّ صَلِّ عَلَى مُحَمَّدٍ وآلِ مُحَمَّدٍ)\n\n"
                 f"{DEV_SIGNATURE}"
             )
@@ -535,21 +467,8 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         user_state[chat_id] = "remove_bg"
         await update.message.reply_text(f"🖼 *أرسل الصورة المراد إزالة خلفيتها الآن:*\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
         return
-    elif text == "🔤 تحويل النص إلى ملصق (Sticker)":
-        user_state[chat_id] = "text_sticker"
-        await update.message.reply_text(f"🔤 *أرسل النص المطلوب تحويله إلى ملصق:*\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
-        return
     elif text.startswith("⏰ مواقيت الصلاة والأذكار"):
         await update.message.reply_text(f"🕌 *اختر محافظتك لمشاهدة مواقيت الصلاة اليومية (حسب التوقيت الشرعي الجعفري):*\n\n{DEV_SIGNATURE}", reply_markup=get_prayer_cities_keyboard(), parse_mode='Markdown')
-        return
-
-    if user_state.get(chat_id) == "text_sticker":
-        user_state.pop(chat_id, None)
-        sticker_bio = create_text_sticker(text)
-        if sticker_bio:
-            await update.message.reply_sticker(sticker=sticker_bio)
-        else:
-            await update.message.reply_text("⚠️ تعذر إنشاء الملصق، حاول مجدداً.")
         return
 
     if user_state.get(chat_id) == "waiting_name":
@@ -598,7 +517,7 @@ async def handle_photo_messages(update: Update, context: ContextTypes.DEFAULT_TY
             if out_bytes:
                 await context.bot.send_document(chat_id, document=BytesIO(out_bytes), filename="no_bg.png", caption=f"🖼 *تم تفريغ الصورة بنجاح!*\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
             else:
-                await update.message.reply_text("⚠️ تعذر إزالة الخلفية حالياً، جرب صورة أخرى.")
+                await update.message.reply_text("⚠️ تعذر إزالة الخلفية، يرجى إضافة REMOVEBG_KEY بـ Railway لتفعيل الخدمة.")
         except:
             await update.message.reply_text("⚠️ حدث خطأ في معالجة الصورة.")
         return
