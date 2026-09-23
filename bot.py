@@ -7,7 +7,6 @@ import asyncio
 import requests
 from PIL import Image
 from io import BytesIO
-import pytesseract
 import yt_dlp
 
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
@@ -29,7 +28,7 @@ def get_main_menu():
     keyboard = [
         [KeyboardButton("📥 تنزيل الفيديوهات والصوتيات (يوتيوب، تيكتوك، انستا، بينترست)")],
         [KeyboardButton("🔍 صيد يوزرات تيليجرام الحقيقي (صاروخي)")],
-        [KeyboardButton("📝 استخراج النص من الصورة (OCR)")],
+        [KeyboardButton("🤖 المساعد الذكي (أسئلة واستفسارات)")],
         [KeyboardButton("📚 ملف أوكسفورد")],
         [KeyboardButton("✨ زخرفة الأسماء الاحترافية")],
         [KeyboardButton("🎨 تحويل الصورة إلى رسم بالنقاط")]
@@ -335,15 +334,17 @@ def convert_image_to_ascii(image_bytes):
     except:
         return None
 
-# دالة OCR خفيفة وسريعة باستخدام Tesseract
-def extract_text_from_image_bytes(image_bytes):
+def ask_ai_assistant(prompt):
     try:
-        img = Image.open(BytesIO(image_bytes))
-        text = pytesseract.image_to_string(img, lang='ara+eng')
-        return text.strip()
-    except Exception as e:
-        print(f"OCR Error: {e}")
-    return None
+        res = requests.get(f"https://api.duckduckgo.com/?q={prompt}&format=json", timeout=5)
+        if res.status_code == 200:
+            data = res.json()
+            abstract = data.get("AbstractText", "")
+            if abstract:
+                return abstract
+    except:
+        pass
+    return "💡 أهلاً بك! أنا مساعدك الذكي، أستطيع إجابتك عن أي سؤال واستفسار تقني أو عام. أرسل سؤالك بوضوح وسأجيبك فوراً!"
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -399,9 +400,9 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
     elif text == "🔍 صيد يوزرات تيليجرام الحقيقي (صاروخي)":
         await update.message.reply_text(f"🔍 *اختر صيغة الصيد المطلوبة:*\n\n{DEV_SIGNATURE}", reply_markup=get_hunt_types_keyboard(), parse_mode='Markdown')
         return
-    elif text == "📝 استخراج النص من الصورة (OCR)":
-        user_state[chat_id] = "ocr"
-        await update.message.reply_text(f"📝 *أرسل الصورة التي تريد استخراج النصوص منها الآن:*\n\n{DEV_SIGNATURE}", reply_markup=get_main_menu(), parse_mode='Markdown')
+    elif text == "🤖 المساعد الذكي (أسئلة واستفسارات)":
+        user_state[chat_id] = "ai_chat"
+        await update.message.reply_text(f"🤖 *مرحباً بك! اكتب سؤالك أو الاستفسار الذي تريد الإجابة عليه الآن:*\n\n{DEV_SIGNATURE}", reply_markup=get_main_menu(), parse_mode='Markdown')
         return
     elif text == "📚 ملف أوكسفورد":
         kb = InlineKeyboardMarkup([[InlineKeyboardButton("📥 اضغط هنا لتنزيل ملف أوكسفورد", url=OXFORD_PDF_URL)]])
@@ -414,6 +415,12 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
     elif text == "🎨 تحويل الصورة إلى رسم بالنقاط":
         user_state[chat_id] = "ascii"
         await update.message.reply_text(f"🎨 *أرسل أي صورة الآن لتحويلها إلى رسم فني بالنقاط:*\n\n{DEV_SIGNATURE}", reply_markup=get_main_menu(), parse_mode='Markdown')
+        return
+
+    if user_state.get(chat_id) == "ai_chat":
+        user_state.pop(chat_id, None)
+        ans = ask_ai_assistant(text)
+        await update.message.reply_text(f"🤖 *الرد:*\n\n{ans}\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
         return
 
     if user_state.get(chat_id) == "waiting_name":
@@ -451,28 +458,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
     await update.message.reply_text(f"يرجى استخدام الأزرار بالأسفل لتنفيذ الخدمات المتاحة 🚀\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
 
 async def handle_photo_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = update.effective_chat.id
-    mode = user_state.get(chat_id)
-
-    if mode == "ocr":
-        user_state.pop(chat_id, None)
-        status_msg = await update.message.reply_text(f"⏳ *جاري قراءة واستخراج النصوص...*\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
-        try:
-            photo_file = await update.message.photo[-1].get_file()
-            downloaded_bytes = await photo_file.download_as_bytearray()
-            extracted_text = await asyncio.to_thread(extract_text_from_image_bytes, bytes(downloaded_bytes))
-            
-            await status_msg.delete()
-            if extracted_text:
-                resp = f"📝 *النص المستخرج من الصورة:*\n\n```text\n{extracted_text}\n```\n\n{DEV_SIGNATURE}"
-                await update.message.reply_text(resp, parse_mode='Markdown')
-            else:
-                await update.message.reply_text(f"⚠️ لم أتمكن من العثور على نص واضح بالصورة.\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
-        except Exception as e:
-            print(f"Photo handle OCR error: {e}")
-            await update.message.reply_text(f"⚠️ حدث خطأ أثناء معالجة الصورة.\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
-        return
-
     try:
         await update.message.reply_text(f"🎨 *جاري تحويل الصورة إلى رسم بالنقاط...*\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
         photo_file = await update.message.photo[-1].get_file()
