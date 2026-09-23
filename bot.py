@@ -45,7 +45,7 @@ def get_features_keyboard():
 def get_video_quality_keyboard():
     keyboard = [
         [InlineKeyboardButton("📱 360p", callback_data="q_360"), InlineKeyboardButton("📺 720p HD", callback_data="q_720")],
-        [InlineKeyboardButton("🖥 1080p Full HD", callback_data="q_1080"), InlineKeyboardButton("🌟 Max", callback_data="q_max")]
+        [InlineKeyboardButton("🖥 1080p Full HD", callback_data="q_1080"), InlineKeyboardButton("🌟 أفضل جودة متاحة", callback_data="q_best")]
     ]
     return InlineKeyboardMarkup(keyboard)
 
@@ -89,7 +89,6 @@ def generate_target_username(htype):
         d1, d2 = random.choice(digits), random.choice(digits)
         return f"{c1}{c2}_{d1}{d2}"
 
-# فحص دقيق للتيليجرام لمنع الحظر والصفنات
 def check_telegram_username_real(username):
     try:
         url = f"https://t.me/{username}"
@@ -99,7 +98,6 @@ def check_telegram_username_real(username):
         res = requests.get(url, headers=headers, timeout=1.5)
         if res.status_code == 200:
             text = res.text
-            # إذا الصفحات ما بيها زر مراسلة ولا إكسترا يعني اليوزر صدك متاح 100%
             if "tgme_page_extra" not in text and "Preview channel" not in text and "Send Message" not in text and "tgme_page_title" not in text:
                 return True
     except:
@@ -117,7 +115,6 @@ async def hunt_username_task(context: ContextTypes.DEFAULT_TYPE, chat_id: int, m
         test_user = generate_target_username(htype)
         current_time = time.time()
 
-        # تحديث الرسالة كل ثانيتين حتى ما ينحظر البوت من التيليجرام
         if current_time - last_edit_time > 2.0:
             matrix_code = generate_random_matrix()
             anim_text = (
@@ -133,18 +130,16 @@ async def hunt_username_task(context: ContextTypes.DEFAULT_TYPE, chat_id: int, m
             except:
                 pass
 
-        # فحص اليوزر بـ Thread منفصل حتى ما يوقف البوت
         is_available = await asyncio.to_thread(check_telegram_username_real, test_user)
         if is_available:
             found_username = test_user
-            break # إيقاف البحث فوراً عند إيجاد اليوزر!
+            break
 
         await asyncio.sleep(0.01)
 
     elapsed_time = round(time.time() - start_time, 2)
     final_matrix = generate_random_matrix()
     
-    # النتيجة النهائية مع عبارة المطور يحيى
     result_text = (
         f"🎉 *تم ايجاد يوزر متاح، ويحيى عمك وعم ولدك!* 👑🔥\n\n"
         f"🟢 `{final_matrix}`\n"
@@ -159,26 +154,34 @@ async def hunt_username_task(context: ContextTypes.DEFAULT_TYPE, chat_id: int, m
     except:
         await context.bot.send_message(chat_id, result_text, reply_markup=get_hunt_types_keyboard(), parse_mode='Markdown')
 
-def download_media_direct(url, is_audio):
+def download_media_direct(url, is_audio, quality="best"):
     filename = f"dl_{int(time.time())}_{random.randint(1000,9999)}"
     ydl_opts = {
         'outtmpl': f'{filename}.%(ext)s',
         'quiet': True,
         'no_warnings': True,
     }
+    
     if is_audio:
         ydl_opts['format'] = 'bestaudio/best'
     else:
-        ydl_opts['format'] = 'bestvideo+bestaudio/best'
+        if quality == "360":
+            ydl_opts['format'] = 'bestvideo[height<=360]+bestaudio/best[height<=360]/best'
+        elif quality == "720":
+            ydl_opts['format'] = 'bestvideo[height<=720]+bestaudio/best[height<=720]/best'
+        elif quality == "1080":
+            ydl_opts['format'] = 'bestvideo[height<=1080]+bestaudio/best[height<=1080]/best'
+        else:
+            ydl_opts['format'] = 'bestvideo+bestaudio/best'
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=True)
         filename_actual = ydl.prepare_filename(info)
         return filename_actual
 
-async def process_media_download(context: ContextTypes.DEFAULT_TYPE, chat_id: int, url: str, is_audio: bool):
+async def process_media_download(context: ContextTypes.DEFAULT_TYPE, chat_id: int, url: str, is_audio: bool, quality: str = "best"):
     try:
-        file_path = await asyncio.to_thread(download_media_direct, url, is_audio)
+        file_path = await asyncio.to_thread(download_media_direct, url, is_audio, quality)
         if file_path and os.path.exists(file_path):
             ext = os.path.splitext(file_path)[1].lower()
             with open(file_path, 'rb') as media_file:
@@ -194,8 +197,8 @@ async def process_media_download(context: ContextTypes.DEFAULT_TYPE, chat_id: in
             except:
                 pass
             return True
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"Download Error: {e}")
     return False
 
 def convert_image_to_ascii(image_bytes):
@@ -238,18 +241,21 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
         await context.bot.send_message(chat_id, f"📥 أرسل الآن الرابط المطلوب للتحميل الفوري:{DEV_SIGNATURE}", parse_mode='Markdown')
 
     elif data == "type_video":
-        await context.bot.edit_message_text(f"🎬 *اختر دقة الفيديو:*{DEV_SIGNATURE}", chat_id=chat_id, message_id=query.message.message_id, reply_markup=get_video_quality_keyboard(), parse_mode='Markdown')
+        await context.bot.edit_message_text(f"🎬 *اختر دقة الفيديو المطلوب:*{DEV_SIGNATURE}", chat_id=chat_id, message_id=query.message.message_id, reply_markup=get_video_quality_keyboard(), parse_mode='Markdown')
 
     elif data == "type_audio":
-        await context.bot.edit_message_text(f"🎵 *اختر جودة الصوت:*{DEV_SIGNATURE}", chat_id=chat_id, message_id=query.message.message_id, reply_markup=get_audio_quality_keyboard(), parse_mode='Markdown')
+        await context.bot.edit_message_text(f"🎵 *اختر جودة الصوت المطلوب:*{DEV_SIGNATURE}", chat_id=chat_id, message_id=query.message.message_id, reply_markup=get_audio_quality_keyboard(), parse_mode='Markdown')
 
     elif data.startswith("q_"):
         req = user_requests.get(chat_id)
+        quality_code = data.replace("q_", "").replace("audio_", "")
+        
         if req:
-            url, is_audio = req.get("url"), req.get("is_audio", False)
+            url = req.get("url")
+            is_audio = req.get("is_audio", False)
             await context.bot.edit_message_text(f"⏳ *جاري التحميل المباشر والسريع...*{DEV_SIGNATURE}", chat_id=chat_id, message_id=query.message.message_id, parse_mode='Markdown')
 
-            success = await process_media_download(context, chat_id, url, is_audio)
+            success = await process_media_download(context, chat_id, url, is_audio, quality=quality_code)
 
             if not success:
                 await context.bot.send_message(chat_id, f"⚠️ *تعذر التحميل، تأكد من صحة الرابط.*{DEV_SIGNATURE}", parse_mode='Markdown')
@@ -271,7 +277,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         return
     elif text == "🎨 تحويل الصورة إلى رسم بالنقاط":
         user_state[chat_id] = "ascii"
-        await update.message.reply_text(f"🎨 *أرسل أي صورة الآن لتحويلها إلى رسم فني بالنقاط:*{DEV_SIGNATURE}", parse_mode='Markdown')
+        await update.message.reply_text(f"🎨 *أرسل أي صورة الآن لتحويلها إلى رسم فني بالنقاط:*{DEV_SIGNATURE}", reply_markup=get_main_menu(), parse_mode='Markdown')
         return
 
     if user_state.get(chat_id) == "waiting_name":
@@ -292,6 +298,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
     urls = re.findall(r'https?://[^\s]+', text)
     if urls:
         target_url = urls[0]
+        # دعم بينترست المباشر
         if "pinterest.com" in target_url or "pin.it" in target_url:
             await update.message.reply_text(f"⏳ *جاري التحميل من Pinterest...*{DEV_SIGNATURE}", parse_mode='Markdown')
             asyncio.create_task(process_media_download(context, chat_id, target_url, False))
@@ -303,12 +310,12 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
             user_requests[chat_id] = {"url": target_url, "is_audio": is_audio}
             user_selected_mode.pop(chat_id, None)
             if is_audio:
-                await update.message.reply_text(f"🎵 *اختر جودة الصوت:*{DEV_SIGNATURE}", reply_markup=get_audio_quality_keyboard(), parse_mode='Markdown')
+                await update.message.reply_text(f"🎵 *اختر جودة الصوت المطلوب:*{DEV_SIGNATURE}", reply_markup=get_audio_quality_keyboard(), parse_mode='Markdown')
             else:
-                await update.message.reply_text(f"🎬 *اختر دقة الفيديو:*{DEV_SIGNATURE}", parse_mode='Markdown')
+                await update.message.reply_text(f"🎬 *اختر دقة الفيديو المطلوب:*{DEV_SIGNATURE}", reply_markup=get_video_quality_keyboard(), parse_mode='Markdown')
         else:
             user_requests[chat_id] = {"url": target_url, "is_audio": False}
-            await update.message.reply_text(f"📥 *اختر نوع التحميل:*{DEV_SIGNATURE}", reply_markup=get_media_type_keyboard(), parse_mode='Markdown')
+            await update.message.reply_text(f"📥 *اختر نوع التحميل المطلوب:*{DEV_SIGNATURE}", reply_markup=get_media_type_keyboard(), parse_mode='Markdown')
         return
 
     await update.message.reply_text(f"يرجى استخدام الأزرار بالأسفل لتنفيذ الخدمات المتاحة 🚀{DEV_SIGNATURE}", parse_mode='Markdown')
@@ -337,5 +344,5 @@ if __name__ == '__main__':
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo_messages))
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_text_messages))
 
-    print("Bot is running fast & smooth...")
+    print("Bot is running perfectly...")
     app.run_polling()
