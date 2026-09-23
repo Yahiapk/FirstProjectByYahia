@@ -76,7 +76,6 @@ def get_oxford_keyboard():
     return markup
 
 def generate_random_matrix():
-    # توليد أرقام 0 و 1 عشوائية ومتغيرة بسرعة
     bits = ["".join(random.choices("01", k=8)) for _ in range(4)]
     return " ".join(bits)
 
@@ -165,7 +164,7 @@ def menu_decorate(message):
 @bot.message_handler(func=lambda message: message.text == "🎨 تحويل الصورة إلى رسم بالنقاط")
 def menu_ascii(message):
     user_state[message.chat.id] = "ascii"
-    bot.reply_to(message, f"🎨 *أرسل أي صورة الآن لتحويلها إلى رسم فني بالنقاط:*{DEV_SIGNATURE}, reply_markup=get_main_menu(), parse_mode='Markdown')
+    bot.reply_to(message, f"🎨 *أرسل أي صورة الآن لتحويلها إلى رسم فني بالنقاط:*{DEV_SIGNATURE}", reply_markup=get_main_menu(), parse_mode='Markdown')
 
 @bot.message_handler(func=lambda message: message.text == "📚 ملف اوكسفورد كلمات")
 def menu_oxford_file(message):
@@ -193,7 +192,6 @@ def handle_callback_query(call):
         found = False
         username = ""
         
-        # حلقة فحص وبحث مع تغيير مصفوفة الأرقام 0101 بسرعة هائلة لحين إيجاد اليوزر المتاح
         for _ in range(25):
             if htype == "1":
                 l = ''.join(random.choices(string.ascii_lowercase, k=2))
@@ -208,7 +206,6 @@ def handle_callback_query(call):
                 d1, d2 = random.choice(string.digits), random.choice(string.digits)
                 username = f"{l1}{d1}_{d2}{l2}"
             
-            # تحديث الرسالة بأرقام عشوائية متغيرة بسرعة (0101)
             matrix_code = generate_random_matrix()
             anim_text = f"🟢 `{matrix_code}`\n⚡ *جاري فحص اليوزر (`{username}`) عبر خوادم تيليجرام...*\n`🟢 [الحالة: جاري البحث السريع... هاك البوت]`{DEV_SIGNATURE}"
             try:
@@ -216,7 +213,6 @@ def handle_callback_query(call):
             except:
                 pass
             
-            # التحقق الحقيقي من السيرفر
             try:
                 check_url = f"https://t.me/{username}"
                 headers = {"User-Agent": "Mozilla/5.0"}
@@ -227,7 +223,7 @@ def handle_callback_query(call):
             except:
                 pass
             
-            time.sleep(0.15) # سرعة التغيير الهائلة
+            time.sleep(0.15)
         
         if not found and not username:
             username = "t_99"
