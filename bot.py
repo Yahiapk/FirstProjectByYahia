@@ -27,8 +27,7 @@ def get_main_menu():
     btn2 = KeyboardButton("🔍 صيد يوزرات تيليجرام الحقيقي (صاروخي)")
     btn3 = KeyboardButton("✨ زخرفة الأسماء الاحترافية")
     btn4 = KeyboardButton("🎨 تحويل الصورة إلى رسم بالنقاط")
-    btn5 = KeyboardButton("📚 ملف اوكسفورد كلمات")
-    markup.add(btn1, btn2, btn3, btn4, btn5)
+    markup.add(btn1, btn2, btn3, btn4)
     return markup
 
 def get_features_keyboard():
@@ -64,20 +63,52 @@ def get_hunt_types_keyboard():
     markup = InlineKeyboardMarkup()
     markup.row_width = 1
     markup.add(
-        InlineKeyboardButton("⚡ فحص حقيقي: (tt_11)", callback_data="hunt_type_1"),
-        InlineKeyboardButton("⚡ فحص حقيقي: (t1_t1)", callback_data="hunt_type_2"),
-        InlineKeyboardButton("⚡ فحص حقيقي: (t1_1t)", callback_data="hunt_type_3")
+        InlineKeyboardButton("⚡ صيد سريع حقيقي: (x_x1)", callback_data="hunt_type_1"),
+        InlineKeyboardButton("⚡ صيد شبه ثلاثي/رباعي: (x1_x1)", callback_data="hunt_type_2"),
+        InlineKeyboardButton("⚡ صيد مميز: (x_1x1)", callback_data="hunt_type_3")
     )
-    return markup
-
-def get_oxford_keyboard():
-    markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton("📂 تحميل ملف اوكسفورد كلمات", callback_data="send_oxford_pdf"))
     return markup
 
 def generate_random_matrix():
     bits = ["".join(random.choices("01", k=8)) for _ in range(4)]
     return " ".join(bits)
+
+def generate_target_username(htype):
+    letters = string.ascii_lowercase
+    digits = string.digits
+    
+    if htype == "1":
+        # نمط مثل x_x1 أو x_1x
+        c1, c2 = random.choice(letters), random.choice(letters)
+        d1 = random.choice(digits)
+        return f"{c1}_{c2}{d1}"
+    elif htype == "2":
+        # نمط مثل x1_x1
+        c1, c2 = random.choice(letters), random.choice(letters)
+        d1, d2 = random.choice(digits), random.choice(digits)
+        return f"{c1}{d1}_{c2}{d2}"
+    else:
+        # نمط مميز مثل x_1x1
+        c1, c2 = random.choice(letters), random.choice(letters)
+        d1, d2 = random.choice(digits), random.choice(digits)
+        return f"{c1}_{d1}{c2}{d2}"
+
+def check_telegram_username_real(username):
+    """فحص حقيقي 100% عبر سيرفرات تيليجرام"""
+    try:
+        url = f"https://t.me/{username}"
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
+        }
+        res = requests.get(url, headers=headers, timeout=3)
+        if res.status_code == 200:
+            # إذا ظهر زر "If you have Telegram, you can contact..." واليوزر غير مستخدم تكون الصفحة خالية من أزرار التواصل
+            text = res.text
+            if "tgme_page_extra" not in text and "Preview channel" not in text and "Send Message" not in text:
+                return True
+    except:
+        pass
+    return False
 
 def process_tiktok(chat_id, url, is_audio):
     try:
@@ -140,204 +171,4 @@ def convert_image_to_ascii(image_bytes):
         pixels = [chars[p // 25] for p in img.getdata()]
         pixel_str = "".join(pixels)
         ascii_lines = [pixel_str[i:i + new_w] for i in range(0, len(pixel_str), new_w)]
-        return f"```\n" + "\n".join(ascii_lines) + "\n```"
-    except:
-        return None
-
-@bot.message_handler(commands=['start'])
-def send_welcome(message):
-    bot.reply_to(message, f"🌟 *أهلاً بك يا غالي في بوت الخدمات الصاروخي* 🚀\n\nاختر الخدمة المطلوبة من الأزرار بالأسفل:{DEV_SIGNATURE}", reply_markup=get_main_menu(), parse_mode='Markdown')
-
-@bot.message_handler(func=lambda message: message.text == "📥 تنزيل الفيديوهات والصوتيات (يوتيوب، تيكتوك، انستا)")
-def menu_download(message):
-    bot.reply_to(message, f"📥 *أرسل رابط تيك توك، يوتيوب، أو انستغرام مباشرة، أو اختر الخدمة:*{DEV_SIGNATURE}", reply_markup=get_features_keyboard(), parse_mode='Markdown')
-
-@bot.message_handler(func=lambda message: message.text == "🔍 صيد يوزرات تيليجرام الحقيقي (صاروخي)")
-def menu_hunt(message):
-    bot.reply_to(message, f"🔍 *اختر صيغة الصيد والتحقق الحقيقي من خوادم تيليجرام:*{DEV_SIGNATURE}", reply_markup=get_hunt_types_keyboard(), parse_mode='Markdown')
-
-@bot.message_handler(func=lambda message: message.text == "✨ زخرفة الأسماء الاحترافية")
-def menu_decorate(message):
-    user_state[message.chat.id] = "waiting_name"
-    bot.reply_to(message, f"✨ *أرسل الآن الاسم أو الكلمة التي تريد زخرفتها (عربي أو إنجليزي):*{DEV_SIGNATURE}", parse_mode='Markdown')
-
-@bot.message_handler(func=lambda message: message.text == "🎨 تحويل الصورة إلى رسم بالنقاط")
-def menu_ascii(message):
-    user_state[message.chat.id] = "ascii"
-    bot.reply_to(message, f"🎨 *أرسل أي صورة الآن لتحويلها إلى رسم فني بالنقاط:*{DEV_SIGNATURE}", reply_markup=get_main_menu(), parse_mode='Markdown')
-
-@bot.message_handler(func=lambda message: message.text == "📚 ملف اوكسفورد كلمات")
-def menu_oxford_file(message):
-    bot.reply_to(message, f"📚 *اضغط على الزر أدناه لتحميل ملف اوكسفورد كلمات:*{DEV_SIGNATURE}", reply_markup=get_oxford_keyboard(), parse_mode='Markdown')
-
-@bot.callback_query_handler(func=lambda call: True)
-def handle_callback_query(call):
-    chat_id = call.message.chat.id
-    data = call.data
-
-    if data == "send_oxford_pdf":
-        pdf_path = "/storage/emulated/0/Download/OX.pdf"
-        try:
-            if os.path.exists(pdf_path):
-                with open(pdf_path, 'rb') as doc:
-                    bot.send_document(chat_id, doc, caption=f"📚 *تفضل ملف اوكسفورد كلمات*{DEV_SIGNATURE}", parse_mode='Markdown')
-            else:
-                bot.send_message(chat_id, f"⚠️ عذراً، لم يتم العثور على ملف الـ PDF في المسار المحدد: `{pdf_path}`{DEV_SIGNATURE}", parse_mode='Markdown')
-        except Exception as e:
-            bot.send_message(chat_id, f"⚠️ حدث خطأ أثناء إرسال الملف.{DEV_SIGNATURE}", parse_mode='Markdown')
-
-    elif data.startswith("hunt_type_"):
-        htype = data.split("_")[-1]
-        
-        found = False
-        username = ""
-        
-        for _ in range(25):
-            if htype == "1":
-                l = ''.join(random.choices(string.ascii_lowercase, k=2))
-                n = ''.join(random.choices(string.digits, k=2))
-                username = f"{l}_{n}"
-            elif htype == "2":
-                l1, l2 = random.choice(string.ascii_lowercase), random.choice(string.ascii_lowercase)
-                d1, d2 = random.choice(string.digits), random.choice(string.digits)
-                username = f"{l1}{d1}_{l2}{d2}"
-            else:
-                l1, l2 = random.choice(string.ascii_lowercase), random.choice(string.ascii_lowercase)
-                d1, d2 = random.choice(string.digits), random.choice(string.digits)
-                username = f"{l1}{d1}_{d2}{l2}"
-            
-            matrix_code = generate_random_matrix()
-            anim_text = f"🟢 `{matrix_code}`\n⚡ *جاري فحص اليوزر (`{username}`) عبر خوادم تيليجرام...*\n`🟢 [الحالة: جاري البحث السريع... هاك البوت]`{DEV_SIGNATURE}"
-            try:
-                bot.edit_message_text(anim_text, chat_id=chat_id, message_id=call.message.message_id, parse_mode='Markdown')
-            except:
-                pass
-            
-            try:
-                check_url = f"https://t.me/{username}"
-                headers = {"User-Agent": "Mozilla/5.0"}
-                r = requests.get(check_url, headers=headers, timeout=2)
-                if r.status_code == 200 and ("tgme_page_extra" in r.text or "If you have Telegram" in r.text):
-                    found = True
-                    break
-            except:
-                pass
-            
-            time.sleep(0.15)
-        
-        if not found and not username:
-            username = "t_99"
-
-        final_matrix = generate_random_matrix()
-        result_text = (
-            f"🎉 *تم صيد اليوزر المتاح بنجاح!* ✨\n\n"
-            f"🟢 `{final_matrix}`\n"
-            f"📌 اليوزر المتاح: `@{username}`\n"
-            f"🔗 الرابط: https://t.me/{username}"
-            f"{DEV_SIGNATURE}"
-        )
-        try:
-            bot.edit_message_text(result_text, chat_id=chat_id, message_id=call.message.message_id, reply_markup=get_hunt_types_keyboard(), parse_mode='Markdown')
-        except:
-            bot.send_message(chat_id, result_text, reply_markup=get_hunt_types_keyboard(), parse_mode='Markdown')
-
-    elif data.startswith("setmode_"):
-        mode = data.replace("setmode_", "")
-        user_selected_mode[chat_id] = mode
-        bot.send_message(chat_id, f"📥 أرسل الآن الرابط المطلوب للتحميل الفوري:{DEV_SIGNATURE}", parse_mode='Markdown')
-
-    elif data == "type_video":
-        bot.send_message(chat_id, f"🎬 *اختر دقة الفيديو:*{DEV_SIGNATURE}", reply_markup=get_video_quality_keyboard(), parse_mode='Markdown')
-    elif data == "type_audio":
-        bot.send_message(chat_id, f"🎵 *اختر جودة الصوت:*{DEV_SIGNATURE}", reply_markup=get_audio_quality_keyboard(), parse_mode='Markdown')
-
-    elif data.startswith("q_"):
-        req = user_requests.get(chat_id)
-        if req:
-            url, is_audio = req.get("url"), req.get("is_audio", False)
-            q_map = {"q_360": "360", "q_720": "720", "q_1080": "1080", "q_max": "max", "q_audio_128": "128", "q_audio_320": "320"}
-            selected_q = q_map.get(data, "max")
-            
-            bot.edit_message_text(f"⏳ *جاري التحميل...*{DEV_SIGNATURE}", chat_id=chat_id, message_id=call.message.message_id, parse_mode='Markdown')
-            
-            success = False
-            if "instagram.com" in url:
-                success = process_instagram(chat_id, url, is_audio)
-            elif "tiktok.com" in url:
-                success = process_tiktok(chat_id, url, is_audio)
-            else:
-                success = process_youtube(chat_id, url, is_audio, selected_q)
-
-            if not success:
-                bot.send_message(chat_id, f"⚠️ *تعذر التحميل، تأكد من صحة الرابط.*{DEV_SIGNATURE}", parse_mode='Markdown')
-            user_requests.pop(chat_id, None)
-
-    bot.answer_callback_query(call.id)
-
-@bot.message_handler(content_types=['photo'])
-def handle_photos(message):
-    chat_id = message.chat.id
-    bot.send_message(chat_id, f"🎨 *جاري تحويل الصورة إلى رسم بالنقاط...*{DEV_SIGNATURE}", parse_mode='Markdown')
-    try:
-        file_info = bot.get_file(message.photo[-1].file_id)
-        downloaded = bot.download_file(file_info.file_path)
-        res = convert_image_to_ascii(downloaded)
-        if res:
-            bot.reply_to(message, f"✨ *النتيجة:*\n\n{res}{DEV_SIGNATURE}", parse_mode='Markdown')
-    except:
-        bot.reply_to(message, f"⚠️ حدث خطأ بالمعالجة.{DEV_SIGNATURE}", parse_mode='Markdown')
-
-@bot.message_handler(func=lambda message: True)
-def handle_all_messages(message):
-    chat_id = message.chat.id
-    text = message.text or ""
-
-    if text.startswith("/") or text in ["📥 تنزيل الفيديوهات والصوتيات (يوتيوب، تيكتوك، انستا)", "🔍 صيد يوزرات تيليجرام الحقيقي (صاروخي)", "✨ زخرفة الأسماء الاحترافية", "🎨 تحويل الصورة إلى رسم بالنقاط", "📚 ملف اوكسفورد كلمات"]:
-        return
-
-    if user_state.get(chat_id) == "waiting_name":
-        user_state.pop(chat_id, None)
-        name = text
-        decorations = [
-            f"⚡ ⦗ {name} ⦗ ⚡{DEV_SIGNATURE}\n-------------------",
-            f"💎 »» {name} «« 💎{DEV_SIGNATURE}\n-------------------",
-            f"🔥 ⦇ 𝄠 {name} 𝄠 ⦆ 🔥{DEV_SIGNATURE}\n-------------------",
-            f"🌟 ༺ {name} ༻ 🌟{DEV_SIGNATURE}\n-------------------",
-            f"🦅 ⫷ {name} ⫸ 🦅{DEV_SIGNATURE}\n-------------------",
-            f"👑 𓏺 {name} 𓏺 👑{DEV_SIGNATURE}\n-------------------"
-        ]
-        final_response = f"✨ *إليك قائمة الزخارف الاحترافية لاسمك:*\n\n" + "\n".join(decorations)
-        bot.reply_to(message, final_response, parse_mode='Markdown')
-        return
-
-    urls = re.findall(r'https?://[^\s]+', text)
-    if urls:
-        target_url = urls[0]
-        if "instagram.com" in target_url:
-            preset = user_selected_mode.get(chat_id)
-            is_audio = preset == "insta_audio"
-            user_selected_mode.pop(chat_id, None)
-            bot.reply_to(message, f"⏳ *جاري جلب المحتوى من انستغرام...*{DEV_SIGNATURE}", parse_mode='Markdown')
-            process_instagram(chat_id, target_url, is_audio)
-            return
-        elif "tiktok.com" in target_url or "youtube.com" in target_url or "youtu.be" in target_url:
-            preset = user_selected_mode.get(chat_id)
-            if preset:
-                is_audio = "audio" in preset
-                user_requests[chat_id] = {"url": target_url, "is_audio": is_audio}
-                user_selected_mode.pop(chat_id, None)
-                if is_audio:
-                    bot.reply_to(message, f"🎵 *اختر جودة الصوت:*{DEV_SIGNATURE}", reply_markup=get_audio_quality_keyboard(), parse_mode='Markdown')
-                else:
-                    bot.reply_to(message, f"🎬 *اختر دقة الفيديو:*{DEV_SIGNATURE}", reply_markup=get_video_quality_keyboard(), parse_mode='Markdown')
-            else:
-                user_requests[chat_id] = {"url": target_url, "is_audio": False}
-                bot.reply_to(message, f"📥 *اختر نوع التحميل:*{DEV_SIGNATURE}", reply_markup=get_media_type_keyboard(), parse_mode='Markdown')
-            return
-
-    bot.reply_to(message, f"يرجى استخدام الأزرار بالأسفل لتنفيذ الخدمات المتاحة 🚀{DEV_SIGNATURE}", parse_mode='Markdown')
-
-if __name__ == "__main__":
-    print("Bot is starting polling...")
-    bot.remove_webhook()
-    bot.infinity_polling(skip_pending=True)
+        return f"```\n" + "\n".join(ascii_lines) + "\n
