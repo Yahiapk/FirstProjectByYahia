@@ -18,6 +18,9 @@ ADMIN_ID = int(os.environ.get("ADMIN_ID", "1283009799"))
 # مفتاح API المفعل مالتك
 RAPIDAPI_KEY = os.environ.get("RAPIDAPI_KEY", "0276121538msh1cbbbeec1cc1582p11753ajsn0b6bf3fabb83")
 
+# رابط التحميل المباشر لملف أوكسفورد من غوغل درايف مالتك
+OXFORD_PDF_URL = "https://drive.google.com/uc?export=download&id=1GqE_PbV4GMUMo6B99sF3v4KtDlErCq7I"
+
 user_requests = {}
 user_selected_mode = {}
 user_state = {}
@@ -28,6 +31,7 @@ def get_main_menu():
     keyboard = [
         [KeyboardButton("📥 تنزيل الفيديوهات والصوتيات (يوتيوب، تيكتوك، انستا، بينترست)")],
         [KeyboardButton("🔍 صيد يوزرات تيليجرام الحقيقي (صاروخي)")],
+        [KeyboardButton("📚 ملف أوكسفورد")],
         [KeyboardButton("✨ زخرفة الأسماء الاحترافية")],
         [KeyboardButton("🎨 تحويل الصورة إلى رسم بالنقاط")]
     ]
@@ -168,7 +172,6 @@ def download_youtube_rapidapi(url, is_audio):
         "x-rapidapi-host": "youtube-media-downloader.p.rapidapi.com"
     }
     
-    # استخراج الـ Video ID من الرابط
     video_id_match = re.search(r'(?:v=|\/)([0-9A-Za-z_-]{11})', url)
     if not video_id_match:
         return None
@@ -202,13 +205,11 @@ def download_youtube_rapidapi(url, is_audio):
     return None
 
 def download_media_direct(url, is_audio, quality="best"):
-    # 1. إذا كان يوتيوب نستخدم RapidAPI لتخطي الحظر
     if "youtube.com" in url or "youtu.be" in url:
         yt_file = download_youtube_rapidapi(url, is_audio)
         if yt_file and os.path.exists(yt_file):
             return yt_file
 
-    # 2. تيك توك، انستغرام، بينترست باستخدام yt-dlp المباشر
     filename = f"dl_{int(time.time())}_{random.randint(1000,9999)}"
     ydl_opts = {
         'outtmpl': f'{filename}.%(ext)s',
@@ -328,6 +329,10 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         return
     elif text == "🔍 صيد يوزرات تيليجرام الحقيقي (صاروخي)":
         await update.message.reply_text(f"🔍 *اختر صيغة الصيد والتحقق الحقيقي السريع من سيرفرات تيليجرام:*{DEV_SIGNATURE}", reply_markup=get_hunt_types_keyboard(), parse_mode='Markdown')
+        return
+    elif text == "📚 ملف أوكسفورد":
+        kb = InlineKeyboardMarkup([[InlineKeyboardButton("📥 اضغط هنا لتنزيل ملف أوكسفورد", url=OXFORD_PDF_URL)]])
+        await update.message.reply_text(f"📚 *تفضل رابط تحميل ملف أوكسفورد المباشر:*{DEV_SIGNATURE}", reply_markup=kb, parse_mode='Markdown')
         return
     elif text == "✨ زخرفة الأسماء الاحترافية":
         user_state[chat_id] = "waiting_name"
