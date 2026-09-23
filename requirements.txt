@@ -4,4 +4,3 @@ pytubefix
 requests
 Pillow
 yt-dlp
-pytesseract
