@@ -28,6 +28,7 @@ def get_main_menu():
     keyboard = [
         [KeyboardButton("📥 تنزيل الفيديوهات والصوتيات (يوتيوب، تيكتوك، انستا، بينترست)")],
         [KeyboardButton("🔍 صيد يوزرات تيليجرام الحقيقي (صاروخي)")],
+        [KeyboardButton("📝 استخراج النص من الصورة (OCR)")],
         [KeyboardButton("📚 ملف أوكسفورد")],
         [KeyboardButton("✨ زخرفة الأسماء الاحترافية")],
         [KeyboardButton("🎨 تحويل الصورة إلى رسم بالنقاط")]
@@ -190,10 +191,8 @@ async def hunt_username_task(context: ContextTypes.DEFAULT_TYPE, chat_id: int, m
 
     elapsed_time = round(time.time() - start_time, 2)
     
-    try:
-        await context.bot.delete_message(chat_id=chat_id, message_id=message_id)
-    except Exception as e:
-        print(f"Delete msg error: {e}")
+    # طباعة اليوزر بالـ Logs مالت السيرفر كنسخة احتياطية آمنة جداً
+    print(f"🔥 [SUCCESS HUNTED USERNAME]: @{found_username} | Attempts: {attempts} | Time: {elapsed_time}s")
 
     sword_final = build_sword_with_info(found_username, attempts, elapsed_time)
     
@@ -203,6 +202,7 @@ async def hunt_username_task(context: ContextTypes.DEFAULT_TYPE, chat_id: int, m
         f"{sword_final}"
     )
 
+    # إرسال الرسالة بشكل مباشر وبدون حذف أي شيء سابق
     await context.bot.send_message(
         chat_id=chat_id, 
         text=caption_text, 
@@ -257,13 +257,11 @@ def download_youtube_rapidapi(url, is_audio):
     return None
 
 def download_media_direct(url, is_audio, quality="best"):
-    # المحاولة الأولى عبر الـ API
     if "youtube.com" in url or "youtu.be" in url:
         yt_file = download_youtube_rapidapi(url, is_audio)
         if yt_file and os.path.exists(yt_file):
             return yt_file
 
-    # المحاولة الثانية (أو للمواقع الأخرى) عبر yt-dlp الاحتياطي المحسّن
     filename = f"dl_{int(time.time())}_{random.randint(1000,9999)}"
     ydl_opts = {
         'outtmpl': f'{filename}.%(ext)s',
@@ -282,7 +280,6 @@ def download_media_direct(url, is_audio, quality="best"):
             'preferredquality': '192',
         }]
     else:
-        # صيغة مضمونة للصوت والصورة معاً
         ydl_opts['format'] = 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best'
 
     try:
@@ -342,6 +339,28 @@ def convert_image_to_ascii(image_bytes):
     except:
         return None
 
+def extract_text_from_image_bytes(image_bytes):
+    try:
+        payload = {
+            'apikey': 'helloworld',
+            'language': 'ara',
+            'isOverlayRequired': False
+        }
+        files = {
+            'file': ('image.jpg', image_bytes, 'image/jpeg')
+        }
+        res = requests.post('https://api.ocr.space/parse/image', files=files, data=payload, timeout=20)
+        result = res.json()
+        
+        parsed_results = result.get('ParsedResults', [])
+        if parsed_results:
+            text = parsed_results[0].get('ParsedText', '').strip()
+            if text:
+                return text
+    except Exception as e:
+        print(f"OCR Error: {e}")
+    return None
+
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         f"🌟 *أهلاً بك يا غالي في بوت الخدمات الصاروخي* 🚀\n\nاختر الخدمة المطلوبة من الأزرار بالأسفل:\n\n{DEV_SIGNATURE}",
@@ -396,6 +415,10 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
     elif text == "🔍 صيد يوزرات تيليجرام الحقيقي (صاروخي)":
         await update.message.reply_text(f"🔍 *اختر صيغة الصيد المطلوبة:*\n\n{DEV_SIGNATURE}", reply_markup=get_hunt_types_keyboard(), parse_mode='Markdown')
         return
+    elif text == "📝 استخراج النص من الصورة (OCR)":
+        user_state[chat_id] = "ocr"
+        await update.message.reply_text(f"📝 *أرسل الصورة التي تريد استخراج النصوص منها الآن:*\n\n{DEV_SIGNATURE}", reply_markup=get_main_menu(), parse_mode='Markdown')
+        return
     elif text == "📚 ملف أوكسفورد":
         kb = InlineKeyboardMarkup([[InlineKeyboardButton("📥 اضغط هنا لتنزيل ملف أوكسفورد", url=OXFORD_PDF_URL)]])
         await update.message.reply_text(f"📚 *تفضل رابط تحميل ملف أوكسفورد المباشر:*\n\n{DEV_SIGNATURE}", reply_markup=kb, parse_mode='Markdown')
@@ -445,6 +468,27 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
 
 async def handle_photo_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
+    mode = user_state.get(chat_id)
+
+    if mode == "ocr":
+        user_state.pop(chat_id, None)
+        status_msg = await update.message.reply_text(f"⏳ *جاري قراءة واستخراج النصوص من الصورة...*\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
+        try:
+            photo_file = await update.message.photo[-1].get_file()
+            downloaded_bytes = await photo_file.download_as_bytearray()
+            extracted_text = await asyncio.to_thread(extract_text_from_image_bytes, bytes(downloaded_bytes))
+            
+            await status_msg.delete()
+            if extracted_text:
+                resp = f"📝 *النص المستخرج من الصورة:*\n\n```text\n{extracted_text}\n```\n\n{DEV_SIGNATURE}"
+                await update.message.reply_text(resp, parse_mode='Markdown')
+            else:
+                await update.message.reply_text(f"⚠️ لم أتمكن من العثور على نص واضح بالصورة.\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
+        except Exception as e:
+            print(f"Photo handle OCR error: {e}")
+            await update.message.reply_text(f"⚠️ حدث خطأ أثناء معالجة الصورة.\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
+        return
+
     try:
         await update.message.reply_text(f"🎨 *جاري تحويل الصورة إلى رسم بالنقاط...*\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
         photo_file = await update.message.photo[-1].get_file()
