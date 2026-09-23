@@ -7,7 +7,6 @@ import asyncio
 import requests
 from PIL import Image
 from io import BytesIO
-import yt_dlp
 
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
@@ -44,7 +43,7 @@ def get_features_keyboard():
 def get_video_quality_keyboard():
     keyboard = [
         [InlineKeyboardButton("📱 360p", callback_data="q_360"), InlineKeyboardButton("📺 720p HD", callback_data="q_720")],
-        [InlineKeyboardButton("🖥 1080p Full HD", callback_data="q_1080"), InlineKeyboardButton("🌟 أفضل جودة متاحة", callback_data="q_best")]
+        [InlineKeyboardButton("🖥 1080p Full HD", callback_data="q_1080"), InlineKeyboardButton("🌟 أفضل جودة متاحة", callback_data="q_max")]
     ]
     return InlineKeyboardMarkup(keyboard)
 
@@ -153,64 +152,54 @@ async def hunt_username_task(context: ContextTypes.DEFAULT_TYPE, chat_id: int, m
     except:
         await context.bot.send_message(chat_id, result_text, reply_markup=get_hunt_types_keyboard(), parse_mode='Markdown')
 
-# نظام تحميل مباشر وموثوق يمنع أخطاء السيرفر
-def download_media_direct(url, is_audio, quality="best"):
-    filename = f"dl_{int(time.time())}_{random.randint(1000,9999)}"
-    
-    ydl_opts = {
-        'outtmpl': f'{filename}.%(ext)s',
-        'quiet': True,
-        'no_warnings': True,
-        'nocheckcertificate': True,
-        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+# التحميل المباشر عبر API الخارجي لتخطي حظر سيرفرات Railway بالكامل
+def download_via_cobalt_api(url, is_audio, quality="720"):
+    api_url = "https://api.cobalt.tools/api/json"
+    headers = {
+        "Accept": "application/json",
+        "Content-Type": "application/json"
     }
     
-    if is_audio:
-        ydl_opts['format'] = 'bestaudio/best'
-    else:
-        # استخدام أفضل صيغة مدمجة مسبقاً لتجنب الفشل
-        if quality == "360":
-            ydl_opts['format'] = 'b[height<=360]/b'
-        elif quality == "720":
-            ydl_opts['format'] = 'b[height<=720]/b'
-        elif quality == "1080":
-            ydl_opts['format'] = 'b[height<=1080]/b'
-        else:
-            ydl_opts['format'] = 'b/best'
-
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(url, download=True)
-        if 'entries' in info and len(info['entries']) > 0:
-            info = info['entries'][0]
-        filename_actual = ydl.prepare_filename(info)
-        
-        if not os.path.exists(filename_actual):
-            base = os.path.splitext(filename_actual)[0]
-            for ext in ['.mp4', '.mkv', '.webm', '.mp3', '.m4a', '.jpg', '.png', '.webp']:
-                if os.path.exists(base + ext):
-                    return base + ext
-        return filename_actual
-
-async def process_media_download(context: ContextTypes.DEFAULT_TYPE, chat_id: int, url: str, is_audio: bool, quality: str = "best"):
+    payload = {
+        "url": url,
+        "videoQuality": quality if quality in ["360", "720", "1080"] else "max",
+        "isAudioOnly": is_audio,
+        "aFormat": "mp3"
+    }
+    
     try:
-        file_path = await asyncio.to_thread(download_media_direct, url, is_audio, quality)
-        if file_path and os.path.exists(file_path):
-            ext = os.path.splitext(file_path)[1].lower()
+        res = requests.post(api_url, json=payload, headers=headers, timeout=15)
+        if res.status_code == 200:
+            data = res.json()
+            download_link = data.get("url")
+            if download_link:
+                file_res = requests.get(download_link, stream=True, timeout=30)
+                if file_res.status_code == 200:
+                    ext = "mp3" if is_audio else "mp4"
+                    file_name = f"dl_{int(time.time())}.{ext}"
+                    with open(file_name, 'wb') as f:
+                        for chunk in file_res.iter_content(chunk_size=8192):
+                            f.write(chunk)
+                    return file_name
+    except Exception as e:
+        print(f"API Error: {e}")
+    return None
+
+async def process_media_download(context: ContextTypes.DEFAULT_TYPE, chat_id: int, url: str, is_audio: bool, quality: str = "720"):
+    file_path = await asyncio.to_thread(download_via_cobalt_api, url, is_audio, quality)
+    if file_path and os.path.exists(file_path):
+        try:
             with open(file_path, 'rb') as media_file:
-                if ext in ['.jpg', '.jpeg', '.png', '.webp']:
-                    await context.bot.send_photo(chat_id, media_file, caption=f"📌 *تم تنزيل الصورة بنجاح*{DEV_SIGNATURE}", parse_mode='Markdown')
-                elif is_audio or ext in ['.mp3', '.m4a', '.wav', '.ogg']:
+                if is_audio:
                     await context.bot.send_audio(chat_id, media_file, caption=f"🎵 *تم تحميل الصوت بنجاح*{DEV_SIGNATURE}", parse_mode='Markdown')
                 else:
                     await context.bot.send_video(chat_id, media_file, caption=f"🎬 *تم تحميل الفيديو بنجاح*{DEV_SIGNATURE}", parse_mode='Markdown')
-            
-            try:
-                os.remove(file_path)
-            except:
-                pass
+            os.remove(file_path)
             return True
-    except Exception as e:
-        print(f"Download Error Log: {e}")
+        except Exception as e:
+            print(f"Send Error: {e}")
+            if os.path.exists(file_path):
+                os.remove(file_path)
     return False
 
 def convert_image_to_ascii(image_bytes):
@@ -270,7 +259,7 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
             success = await process_media_download(context, chat_id, url, is_audio, quality=quality_code)
 
             if not success:
-                await context.bot.send_message(chat_id, f"⚠️ *تعذر التحميل، حاول اختيار خيار (أفضل جودة متاحة) أو جرب رابطاً آخر.*{DEV_SIGNATURE}", parse_mode='Markdown')
+                await context.bot.send_message(chat_id, f"⚠️ *تعذر التحميل، تأكد من صحة الرابط أو جرب رابطاً آخر.*{DEV_SIGNATURE}", parse_mode='Markdown')
             user_requests.pop(chat_id, None)
 
 async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -310,11 +299,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
     urls = re.findall(r'https?://[^\s]+', text)
     if urls:
         target_url = urls[0]
-        if "pinterest.com" in target_url or "pin.it" in target_url:
-            await update.message.reply_text(f"⏳ *جاري التحميل من Pinterest...*{DEV_SIGNATURE}", parse_mode='Markdown')
-            asyncio.create_task(process_media_download(context, chat_id, target_url, False))
-            return
-
         preset = user_selected_mode.get(chat_id)
         if preset:
             is_audio = "audio" in preset
