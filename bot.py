@@ -8,6 +8,7 @@ import requests
 from PIL import Image
 from io import BytesIO
 import yt_dlp
+import easyocr
 
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
@@ -23,6 +24,11 @@ user_selected_mode = {}
 user_state = {}
 
 DEV_SIGNATURE = "💻 Dev: YahiaFadhel"
+
+# تحميل محرك OCR العربي والإنجليزي محلياً
+print("⏳ جاري تحميل محرك الذكاء الاصطناعي للقراءة (OCR)...")
+ocr_reader = easyocr.Reader(['ar', 'en'], gpu=False)
+print("✅ تم تحميل محرك OCR بنجاح!")
 
 def get_main_menu():
     keyboard = [
@@ -336,41 +342,15 @@ def convert_image_to_ascii(image_bytes):
     except:
         return None
 
-# دالة OCR المحسّنة والقوية جداً
+# دالة الـ OCR الجديدة المحلية بنسبة 100%
 def extract_text_from_image_bytes(image_bytes):
     try:
-        payload = {
-            'apikey': 'helloworld',
-            'language': 'ara',
-            'isOverlayRequired': False,
-            'detectOrientation': True,
-            'scale': True,
-            'OCREngine': 2  # المحرك الثاني أسرع وأدق جداً مع اللغة العربية
-        }
-        files = {
-            'file': ('image.jpg', image_bytes, 'image/jpeg')
-        }
-        res = requests.post('https://api.ocr.space/parse/image', files=files, data=payload, timeout=25)
-        result = res.json()
-        
-        parsed_results = result.get('ParsedResults', [])
-        if parsed_results:
-            text = parsed_results[0].get('ParsedText', '').strip()
-            if text:
-                return text
-        
-        # إذا لم يجد مع المحرك 2 نجرب المحرك 1 كخيار احتياطي
-        payload['OCREngine'] = 1
-        res = requests.post('https://api.ocr.space/parse/image', files=files, data=payload, timeout=25)
-        result = res.json()
-        parsed_results = result.get('ParsedResults', [])
-        if parsed_results:
-            text = parsed_results[0].get('ParsedText', '').strip()
-            if text:
-                return text
-
+        results = ocr_reader.readtext(image_bytes, detail=0)
+        if results:
+            extracted_text = "\n".join(results).strip()
+            return extracted_text
     except Exception as e:
-        print(f"OCR Error Log: {e}")
+        print(f"EasyOCR Local Error: {e}")
     return None
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -400,7 +380,7 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
         await context.bot.edit_message_text(f"🎬 *اختر دقة الفيديو المطلوب:*\n\n{DEV_SIGNATURE}", chat_id=chat_id, message_id=query.message.message_id, reply_markup=get_video_quality_keyboard(), parse_mode='Markdown')
 
     elif data == "type_audio":
-        await context.bot.edit_message_text(f"🎵 *اختر جودة الصوت المطلوب:*\n\n{DEV_SIGNATURE}", chat_id=chat_id, message_id=query.message.message_id, reply_markup=get_audio_quality_keyboard(), parse_mode='Markdown')
+        await context.bot.edit_message_text(f"🎵 *اختر جودة الصوت المطلوب:*\n\n{DEV_SIGNATURE}", chat_id=chat_id, message_id=query.message.message_id, parse_mode='Markdown')
 
     elif data.startswith("q_"):
         req = user_requests.get(chat_id)
@@ -441,7 +421,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         return
     elif text == "🎨 تحويل الصورة إلى رسم بالنقاط":
         user_state[chat_id] = "ascii"
-        await update.message.reply_text(f"🎨 *أرسل أي صورة الآن لتحويلها إلى رسم فني بالنقاط:*\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
+        await update.message.reply_text(f"🎨 *أرسل أي صورة الآن لتحويلها إلى رسم فني بالنقاط:*\n\n{DEV_SIGNATURE}", reply_markup=get_main_menu(), parse_mode='Markdown')
         return
 
     if user_state.get(chat_id) == "waiting_name":
@@ -484,7 +464,7 @@ async def handle_photo_messages(update: Update, context: ContextTypes.DEFAULT_TY
 
     if mode == "ocr":
         user_state.pop(chat_id, None)
-        status_msg = await update.message.reply_text(f"⏳ *جاري قراءة واستخراج النصوص من الصورة...*\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
+        status_msg = await update.message.reply_text(f"⏳ *جاري قراءة واستخراج النصوص باستخدام الذكاء الاصطناعي...*\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
         try:
             photo_file = await update.message.photo[-1].get_file()
             downloaded_bytes = await photo_file.download_as_bytearray()
@@ -495,7 +475,7 @@ async def handle_photo_messages(update: Update, context: ContextTypes.DEFAULT_TY
                 resp = f"📝 *النص المستخرج من الصورة:*\n\n```text\n{extracted_text}\n```\n\n{DEV_SIGNATURE}"
                 await update.message.reply_text(resp, parse_mode='Markdown')
             else:
-                await update.message.reply_text(f"⚠️ لم أتمكن من العثور على نص واضح بالصورة، يرجى التأكد من وضوح الكلام وإرسالها مجدداً.\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
+                await update.message.reply_text(f"⚠️ لم أتمكن من العثور على نص واضح بالصورة.\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
         except Exception as e:
             print(f"Photo handle OCR error: {e}")
             await update.message.reply_text(f"⚠️ حدث خطأ أثناء معالجة الصورة.\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
