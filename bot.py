@@ -153,7 +153,7 @@ async def hunt_username_task(context: ContextTypes.DEFAULT_TYPE, chat_id: int, m
     except:
         await context.bot.send_message(chat_id, result_text, reply_markup=get_hunt_types_keyboard(), parse_mode='Markdown')
 
-# دالة التنزيل عبر yt-dlp مع متطلبات التوافق الجدية
+# دالة التحميل المخصصة لتفك حظر يوتيوب عبر التظاهر بطلب أندرويد/ويب
 def download_media_direct(url, is_audio, quality="best"):
     filename = f"dl_{int(time.time())}_{random.randint(1000,9999)}"
     
@@ -163,6 +163,12 @@ def download_media_direct(url, is_audio, quality="best"):
         'no_warnings': True,
         'nocheckcertificate': True,
         'geo_bypass': True,
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['android', 'web', 'ios'],
+                'skip': ['hls', 'dash']
+            }
+        },
         'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
     }
     
