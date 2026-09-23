@@ -7,8 +7,8 @@ import asyncio
 import requests
 from PIL import Image
 from io import BytesIO
+import pytesseract
 import yt_dlp
-import easyocr
 
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
@@ -24,11 +24,6 @@ user_selected_mode = {}
 user_state = {}
 
 DEV_SIGNATURE = "💻 Dev: YahiaFadhel"
-
-# تحميل محرك OCR العربي والإنجليزي محلياً
-print("⏳ جاري تحميل محرك الذكاء الاصطناعي للقراءة (OCR)...")
-ocr_reader = easyocr.Reader(['ar', 'en'], gpu=False)
-print("✅ تم تحميل محرك OCR بنجاح!")
 
 def get_main_menu():
     keyboard = [
@@ -196,8 +191,6 @@ async def hunt_username_task(context: ContextTypes.DEFAULT_TYPE, chat_id: int, m
         await asyncio.sleep(0.02)
 
     elapsed_time = round(time.time() - start_time, 2)
-    print(f"🔥 [SUCCESS HUNTED USERNAME]: @{found_username} | Attempts: {attempts} | Time: {elapsed_time}s")
-
     sword_final = build_sword_with_info(found_username, attempts, elapsed_time)
     
     caption_text = (
@@ -342,15 +335,14 @@ def convert_image_to_ascii(image_bytes):
     except:
         return None
 
-# دالة الـ OCR الجديدة المحلية بنسبة 100%
+# دالة OCR خفيفة وسريعة باستخدام Tesseract
 def extract_text_from_image_bytes(image_bytes):
     try:
-        results = ocr_reader.readtext(image_bytes, detail=0)
-        if results:
-            extracted_text = "\n".join(results).strip()
-            return extracted_text
+        img = Image.open(BytesIO(image_bytes))
+        text = pytesseract.image_to_string(img, lang='ara+eng')
+        return text.strip()
     except Exception as e:
-        print(f"EasyOCR Local Error: {e}")
+        print(f"OCR Error: {e}")
     return None
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -464,7 +456,7 @@ async def handle_photo_messages(update: Update, context: ContextTypes.DEFAULT_TY
 
     if mode == "ocr":
         user_state.pop(chat_id, None)
-        status_msg = await update.message.reply_text(f"⏳ *جاري قراءة واستخراج النصوص باستخدام الذكاء الاصطناعي...*\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
+        status_msg = await update.message.reply_text(f"⏳ *جاري قراءة واستخراج النصوص...*\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
         try:
             photo_file = await update.message.photo[-1].get_file()
             downloaded_bytes = await photo_file.download_as_bytearray()
