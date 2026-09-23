@@ -153,15 +153,18 @@ async def hunt_username_task(context: ContextTypes.DEFAULT_TYPE, chat_id: int, m
     except:
         await context.bot.send_message(chat_id, result_text, reply_markup=get_hunt_types_keyboard(), parse_mode='Markdown')
 
-# دالة التنزيل الخارجي لليوتيوب لتخطي حظر IP السيرفر بالكامل
-def download_youtube_via_api(url, is_audio, quality="720"):
+# المحرك المتقدم للتنزيل مع تدوير الـ APIs وسيرفرات الفولباك
+def download_youtube_advanced(url, is_audio, quality="720"):
     filename = f"dl_{int(time.time())}_{random.randint(1000,9999)}"
     ext = "mp3" if is_audio else "mp4"
     file_path = f"{filename}.{ext}"
     
-    apis = [
+    # قائمة بإنستانسات Cobalt المتاحة للتنقل بينها
+    cobalt_instances = [
         "https://co.wuk.sh/api/json",
-        "https://api.cobalt.tools/api/json"
+        "https://api.cobalt.tools/api/json",
+        "https://cobalt.stream.pet/api/json",
+        "https://cobalt.q1.is/api/json"
     ]
     
     headers = {
@@ -177,9 +180,10 @@ def download_youtube_via_api(url, is_audio, quality="720"):
         "vQuality": "720" if quality in ["360", "720"] else "1080"
     }
 
-    for api in apis:
+    # المحاولة الأولى: استخدام سيرفرات Cobalt المتعددة
+    for api in cobalt_instances:
         try:
-            res = requests.post(api, json=payload, headers=headers, timeout=12)
+            res = requests.post(api, json=payload, headers=headers, timeout=10)
             if res.status_code == 200:
                 data = res.json()
                 download_url = data.get("url")
@@ -187,22 +191,60 @@ def download_youtube_via_api(url, is_audio, quality="720"):
                     m_res = requests.get(download_url, stream=True, timeout=90)
                     if m_res.status_code == 200:
                         with open(file_path, 'wb') as f:
-                            for chunk in m_res.iter_content(chunk_size=16384):
+                            for chunk in m_res.iter_content(chunk_size=32768):
                                 f.write(chunk)
                         return file_path
         except Exception as e:
-            print(f"API Error {api}: {e}")
+            print(f"Cobalt Instance Error ({api}): {e}")
             continue
+
+    # المحاولة الثانية: استخدام سيرفرات Invidious لتوليد روابط التحميل المباشرة
+    try:
+        video_id_match = re.search(r'(?:v=|\/)([0-9A-Za-z_-]{11})', url)
+        if video_id_match:
+            video_id = video_id_match.group(1)
+            invidious_instances = [
+                "https://invidious.nerdvpn.de",
+                "https://inv.tux.pizza",
+                "https://invidious.drgns.space"
+            ]
+            for inv_host in invidious_instances:
+                try:
+                    inv_res = requests.get(f"{inv_host}/api/v1/videos/{video_id}", timeout=8).json()
+                    if is_audio:
+                        adaptive = inv_res.get("adaptiveFormats", [])
+                        audio_streams = [f for f in adaptive if "audio/" in f.get("type", "")]
+                        if audio_streams:
+                            dl_link = audio_streams[0]["url"]
+                    else:
+                        format_streams = inv_res.get("formatStreams", [])
+                        if format_streams:
+                            dl_link = format_streams[0]["url"]
+                        else:
+                            dl_link = None
+
+                    if dl_link:
+                        m_res = requests.get(dl_link, stream=True, timeout=90)
+                        if m_res.status_code == 200:
+                            with open(file_path, 'wb') as f:
+                                for chunk in m_res.iter_content(chunk_size=32768):
+                                    f.write(chunk)
+                            return file_path
+                except:
+                    continue
+    except Exception as e:
+        print(f"Invidious Error: {e}")
+
     return None
 
 def download_media_direct(url, is_audio, quality="best"):
-    # 1. إذا كان الرابط يوتيوب نستخدم سيرفر الـ API الخارجي لتجاوز حظر السيرفر
+    # 1. يوتيوب: استخدام محرك التدوير المتقدم لتخطي حظر السيرفر بالكامل
     if "youtube.com" in url or "youtu.be" in url:
-        yt_file = download_youtube_via_api(url, is_audio, quality)
+        yt_file = download_youtube_advanced(url, is_audio, quality)
         if yt_file and os.path.exists(yt_file):
             return yt_file
 
-    # 2. للمواقع الأخرى (تيكتوك، انستا، بينترست) أو محاولة ثانية
+    # 2. للمواقع الأخرى (تيكتوك، انستا، بينترست) أو محاولة احتياطية بـ yt-dlp
     filename = f"dl_{int(time.time())}_{random.randint(1000,9999)}"
     ydl_opts = {
         'outtmpl': f'{filename}.%(ext)s',
