@@ -15,8 +15,8 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, Cal
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 ADMIN_ID = int(os.environ.get("ADMIN_ID", "1283009799"))
 
-# مفتاح API المفعل مالتك
-RAPIDAPI_KEY = os.environ.get("RAPIDAPI_KEY", "0276121538msh1cbbbeec1cc1582p11753ajsn0b6bf3fabb83")
+# سحب المفتاح من متغيرات البيئة بأمان تام (بدون كشفه للكود)
+RAPIDAPI_KEY = os.environ.get("RAPIDAPI_KEY")
 
 # رابط ملف أوكسفورد
 OXFORD_PDF_URL = "https://drive.google.com/uc?export=download&id=1GqE_PbV4GMUMo6B99sF3v4KtDlErCq7I"
@@ -25,43 +25,7 @@ user_requests = {}
 user_selected_mode = {}
 user_state = {}
 
-DEV_SIGNATURE = "\n\n━━━━━━━━━━━━━\n💻 *Dev: Yahia | المطور يحيى*\n⚠️ _ديربالك على عيونك لأن بس تصبح الصباح ينعمن من نور يحيى_"
-
-# رسمة سيف الإمام علي (ذو الفقار) الملوية والاحترافية
-SWORD_ASCII = """
- تم صيد يوزر متاح Dev:YahiaFadhel
-
-                     /\\
-                    /  \\
-                   /    \\
-                  /  /\  \\
-                 /  /  \  \\
-                /  /    \  \\
-               /  /      \  \\
-              /  /        \  \\
-             /  /          \  \\
-            /  /            \  \\
-           /  /              \  \\
-          /  /                \  \\
-         /  /                  \  \\
-        /  /                    \  \\
-       /  /                      \  \\
-      /  /                        \  \\
-     /  /                          \  \\
-    (  (                            )  )
-     \  \                          /  /
-      \  \                        /  /
-       \  \                      /  /
-        \  \                    /  /
-         \  \__________________/  /
-          \______        ________/
-                 |  ||  |
-                 |  ||  |
-                [________]
-                   |  |
-                   |  |
-                  (____)
-"""
+DEV_SIGNATURE = "💻 Dev: YahiaFadhel"
 
 def get_main_menu():
     keyboard = [
@@ -103,7 +67,6 @@ def get_media_type_keyboard():
     ]
     return InlineKeyboardMarkup(keyboard)
 
-# قائمة الأشكال المحددة بالظبط
 def get_hunt_types_keyboard():
     keyboard = [
         [InlineKeyboardButton("🎯 صيغة: x1_1x", callback_data="hunt_type_1"), InlineKeyboardButton("🎯 صيغة: xx_11", callback_data="hunt_type_2")],
@@ -117,7 +80,6 @@ def generate_random_matrix():
     bits = ["".join(random.choices("01", k=8)) for _ in range(4)]
     return " ".join(bits)
 
-# توليد الأشكال المطلوبة بالتمام
 def generate_target_username(htype):
     letters = string.ascii_lowercase
     digits = string.digits
@@ -156,6 +118,46 @@ def check_telegram_username_real(username):
         pass
     return False
 
+def build_sword_with_info(username, attempts, elapsed_time):
+    user_str = f"@{username}".center(22)
+    att_str = f"Attempts: {attempts}".center(22)
+    time_str = f"Time: {elapsed_time}s".center(22)
+    dev_str = f"{DEV_SIGNATURE}".center(22)
+
+    sword_art = f"""```
+                  /\\
+                 /  \\
+                / /\\ \\
+               / /  \\ \\
+              / /    \\ \\
+             / /  /\\  \\ \\
+            / /  /  \\  \\ \\
+           / /  /    \\  \\ \\
+          / /  /      \\  \\ \\
+         | |  |        |  | |
+         | |  |        |  | |
+         | | [SUCCESS] |  | |
+         | |           |  | |
+         | |{user_str}| |
+         | |           |  | |
+         | |{att_str}| |
+         | |           |  | |
+         | |{time_str}| |
+         | |           |  | |
+         | |{dev_str}| |
+         | |           |  | |
+         | |___________|  | |
+        /                   \\
+       /____   _______   ____\\
+            | |       | |
+            | |       | |
+           [___________]
+                |   |
+                |   |
+               (_____)
+```"""
+    return sword_art
+
 async def hunt_username_task(context: ContextTypes.DEFAULT_TYPE, chat_id: int, message_id: int, htype: str):
     found_username = None
     attempts = 0
@@ -173,8 +175,8 @@ async def hunt_username_task(context: ContextTypes.DEFAULT_TYPE, chat_id: int, m
                 f"⚡ *جاري الصيد السريع والصاروخي...*\n\n"
                 f"🟢 `{matrix_code}`\n"
                 f"🔍 نفحص هسة: `@{test_user}`\n"
-                f"📊 عدد المحاولات: `{attempts}`"
-                f"{DEV_SIGNATURE}"
+                f"📊 عدد المحاولات: `{attempts}`\n\n"
+                f"━━━━━━━━━━━━━\n{DEV_SIGNATURE}"
             )
             try:
                 await context.bot.edit_message_text(anim_text, chat_id=chat_id, message_id=message_id, parse_mode='Markdown')
@@ -190,30 +192,31 @@ async def hunt_username_task(context: ContextTypes.DEFAULT_TYPE, chat_id: int, m
         await asyncio.sleep(0.02)
 
     elapsed_time = round(time.time() - start_time, 2)
-    final_matrix = generate_random_matrix()
-    
-    # 1. الرسالة الأولى: معلومات اليوزر المصيود
-    result_text = (
-        f"🎉 *تم إيجاد يوزر متاح بنجاح!* 👑🔥\n\n"
-        f"🟢 `{final_matrix}`\n"
-        f"📌 اليوزر المتاح: `@{found_username}`\n"
-        f"⏱ وقت الاستغراق: `{elapsed_time}` ثانية\n"
-        f"📊 عدد المحاولات: `{attempts}`\n"
-        f"🔗 الرابط المباشر: https://t.me/{found_username}"
-        f"{DEV_SIGNATURE}"
-    )
     
     try:
-        await context.bot.edit_message_text(result_text, chat_id=chat_id, message_id=message_id, reply_markup=get_hunt_types_keyboard(), parse_mode='Markdown')
-    except:
-        await context.bot.send_message(chat_id, result_text, reply_markup=get_hunt_types_keyboard(), parse_mode='Markdown')
+        await context.bot.delete_message(chat_id=chat_id, message_id=message_id)
+    except Exception as e:
+        print(f"Delete msg error: {e}")
 
-    # 2. الرسالة الثانية: سيف الإمام علي (ذو الفقار) المكتوب فوقه العبارة
-    sword_msg = f"```\n{SWORD_ASCII}\n```"
-    await context.bot.send_message(chat_id, sword_msg, parse_mode='Markdown')
+    sword_final = build_sword_with_info(found_username, attempts, elapsed_time)
+    
+    caption_text = (
+        f"👑 *تم صيد يوزر متاح بنجاح!*\n"
+        f"🔗 الرابط المباشر: https://t.me/{found_username}\n\n"
+        f"{sword_final}"
+    )
 
-# تنزيل يوتيوب عبر RapidAPI
+    await context.bot.send_message(
+        chat_id=chat_id, 
+        text=caption_text, 
+        reply_markup=get_hunt_types_keyboard(), 
+        parse_mode='Markdown'
+    )
+
 def download_youtube_rapidapi(url, is_audio):
+    if not RAPIDAPI_KEY:
+        return None
+
     filename = f"dl_{int(time.time())}_{random.randint(1000,9999)}"
     ext = "mp3" if is_audio else "mp4"
     file_path = f"{filename}.{ext}"
@@ -297,11 +300,11 @@ async def process_media_download(context: ContextTypes.DEFAULT_TYPE, chat_id: in
             ext = os.path.splitext(file_path)[1].lower()
             with open(file_path, 'rb') as media_file:
                 if ext in ['.jpg', '.jpeg', '.png', '.webp']:
-                    await context.bot.send_photo(chat_id, media_file, caption=f"📌 *تم تنزيل الصورة بنجاح*{DEV_SIGNATURE}", parse_mode='Markdown')
+                    await context.bot.send_photo(chat_id, media_file, caption=f"📌 *تم تنزيل الصورة بنجاح*\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
                 elif is_audio or ext in ['.mp3', '.m4a', '.wav', '.ogg']:
-                    await context.bot.send_audio(chat_id, media_file, caption=f"🎵 *تم تحميل الصوت بنجاح*{DEV_SIGNATURE}", parse_mode='Markdown', read_timeout=120, write_timeout=120)
+                    await context.bot.send_audio(chat_id, media_file, caption=f"🎵 *تم تحميل الصوت بنجاح*\n\n{DEV_SIGNATURE}", parse_mode='Markdown', read_timeout=120, write_timeout=120)
                 else:
-                    await context.bot.send_video(chat_id, media_file, caption=f"🎬 *تم تحميل الفيديو بنجاح*{DEV_SIGNATURE}", parse_mode='Markdown', read_timeout=120, write_timeout=120)
+                    await context.bot.send_video(chat_id, media_file, caption=f"🎬 *تم تحميل الفيديو بنجاح*\n\n{DEV_SIGNATURE}", parse_mode='Markdown', read_timeout=120, write_timeout=120)
             
             try:
                 os.remove(file_path)
@@ -330,7 +333,7 @@ def convert_image_to_ascii(image_bytes):
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        f"🌟 *أهلاً بك يا غالي في بوت الخدمات الصاروخي* 🚀\n\nاختر الخدمة المطلوبة من الأزرار بالأسفل:{DEV_SIGNATURE}",
+        f"🌟 *أهلاً بك يا غالي في بوت الخدمات الصاروخي* 🚀\n\nاختر الخدمة المطلوبة من الأزرار بالأسفل:\n\n{DEV_SIGNATURE}",
         reply_markup=get_main_menu(),
         parse_mode='Markdown'
     )
@@ -349,13 +352,13 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
     elif data.startswith("setmode_"):
         mode = data.replace("setmode_", "")
         user_selected_mode[chat_id] = mode
-        await context.bot.send_message(chat_id, f"📥 أرسل الآن الرابط المطلوب للتحميل الفوري:{DEV_SIGNATURE}", parse_mode='Markdown')
+        await context.bot.send_message(chat_id, f"📥 أرسل الآن الرابط المطلوب للتحميل الفوري:\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
 
     elif data == "type_video":
-        await context.bot.edit_message_text(f"🎬 *اختر دقة الفيديو المطلوب:*{DEV_SIGNATURE}", chat_id=chat_id, message_id=query.message.message_id, reply_markup=get_video_quality_keyboard(), parse_mode='Markdown')
+        await context.bot.edit_message_text(f"🎬 *اختر دقة الفيديو المطلوب:*\n\n{DEV_SIGNATURE}", chat_id=chat_id, message_id=query.message.message_id, reply_markup=get_video_quality_keyboard(), parse_mode='Markdown')
 
     elif data == "type_audio":
-        await context.bot.edit_message_text(f"🎵 *اختر جودة الصوت المطلوب:*{DEV_SIGNATURE}", chat_id=chat_id, message_id=query.message.message_id, reply_markup=get_audio_quality_keyboard(), parse_mode='Markdown')
+        await context.bot.edit_message_text(f"🎵 *اختر جودة الصوت المطلوب:*\n\n{DEV_SIGNATURE}", chat_id=chat_id, message_id=query.message.message_id, reply_markup=get_audio_quality_keyboard(), parse_mode='Markdown')
 
     elif data.startswith("q_"):
         req = user_requests.get(chat_id)
@@ -364,12 +367,12 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
         if req:
             url = req.get("url")
             is_audio = req.get("is_audio", False)
-            await context.bot.edit_message_text(f"⏳ *جاري التحميل المباشر والسريع...*{DEV_SIGNATURE}", chat_id=chat_id, message_id=query.message.message_id, parse_mode='Markdown')
+            await context.bot.edit_message_text(f"⏳ *جاري التحميل المباشر والسريع...*\n\n{DEV_SIGNATURE}", chat_id=chat_id, message_id=query.message.message_id, parse_mode='Markdown')
 
             success = await process_media_download(context, chat_id, url, is_audio, quality=quality_code)
 
             if not success:
-                await context.bot.send_message(chat_id, f"⚠️ *تعذر التحميل، تأكد من صحة الرابط أو جرب رابطاً آخر.*{DEV_SIGNATURE}", parse_mode='Markdown')
+                await context.bot.send_message(chat_id, f"⚠️ *تعذر التحميل، تأكد من صحة الرابط أو جرب رابطاً آخر.*\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
             user_requests.pop(chat_id, None)
 
 async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -377,36 +380,36 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
     text = update.message.text or ""
 
     if text.startswith("📥 تنزيل الفيديوهات والصوتيات"):
-        await update.message.reply_text(f"📥 *أرسل رابط تيك توك، يوتيوب، انستغرام، أو بينترست مباشرة:*{DEV_SIGNATURE}", reply_markup=get_features_keyboard(), parse_mode='Markdown')
+        await update.message.reply_text(f"📥 *أرسل رابط تيك توك، يوتيوب، انستغرام، أو بينترست مباشرة:*\n\n{DEV_SIGNATURE}", reply_markup=get_features_keyboard(), parse_mode='Markdown')
         return
     elif text == "🔍 صيد يوزرات تيليجرام الحقيقي (صاروخي)":
-        await update.message.reply_text(f"🔍 *اختر صيغة الصيد المطلوبة:*{DEV_SIGNATURE}", reply_markup=get_hunt_types_keyboard(), parse_mode='Markdown')
+        await update.message.reply_text(f"🔍 *اختر صيغة الصيد المطلوبة:*\n\n{DEV_SIGNATURE}", reply_markup=get_hunt_types_keyboard(), parse_mode='Markdown')
         return
     elif text == "📚 ملف أوكسفورد":
         kb = InlineKeyboardMarkup([[InlineKeyboardButton("📥 اضغط هنا لتنزيل ملف أوكسفورد", url=OXFORD_PDF_URL)]])
-        await update.message.reply_text(f"📚 *تفضل رابط تحميل ملف أوكسفورد المباشر:*{DEV_SIGNATURE}", reply_markup=kb, parse_mode='Markdown')
+        await update.message.reply_text(f"📚 *تفضل رابط تحميل ملف أوكسفورد المباشر:*\n\n{DEV_SIGNATURE}", reply_markup=kb, parse_mode='Markdown')
         return
     elif text == "✨ زخرفة الأسماء الاحترافية":
         user_state[chat_id] = "waiting_name"
-        await update.message.reply_text(f"✨ *أرسل الآن الاسم أو الكلمة التي تريد زخرفتها (عربي أو إنجليزي):*{DEV_SIGNATURE}", parse_mode='Markdown')
+        await update.message.reply_text(f"✨ *أرسل الآن الاسم أو الكلمة التي تريد زخرفتها (عربي أو إنجليزي):*\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
         return
     elif text == "🎨 تحويل الصورة إلى رسم بالنقاط":
         user_state[chat_id] = "ascii"
-        await update.message.reply_text(f"🎨 *أرسل أي صورة الآن لتحويلها إلى رسم فني بالنقاط:*{DEV_SIGNATURE}", reply_markup=get_main_menu(), parse_mode='Markdown')
+        await update.message.reply_text(f"🎨 *أرسل أي صورة الآن لتحويلها إلى رسم فني بالنقاط:*\n\n{DEV_SIGNATURE}", reply_markup=get_main_menu(), parse_mode='Markdown')
         return
 
     if user_state.get(chat_id) == "waiting_name":
         user_state.pop(chat_id, None)
         name = text
         decorations = [
-            f"⚡ ⦗ {name} ⦗ ⚡{DEV_SIGNATURE}\n-------------------",
-            f"💎 »» {name} »« 💎{DEV_SIGNATURE}\n-------------------",
-            f"🔥 ⦇ 𝄠 {name} 𝄠 ⦆ 🔥{DEV_SIGNATURE}\n-------------------",
-            f"🌟 ༺ {name} ༻ 🌟{DEV_SIGNATURE}\n-------------------",
-            f"🦅 ⫷ {name} ⫸ 🦅{DEV_SIGNATURE}\n-------------------",
-            f"👑 𓏺 {name} 𓏺 👑{DEV_SIGNATURE}\n-------------------"
+            f"⚡ ⦗ {name} ⦗ ⚡",
+            f"💎 »» {name} »« 💎",
+            f"🔥 ⦇ 𝄠 {name} 𝄠 ⦆ 🔥",
+            f"🌟 ༺ {name} ༻ 🌟",
+            f"🦅 ⫷ {name} ⫸ 🦅",
+            f"👑 𓏺 {name} 𓏺 👑"
         ]
-        final_response = f"✨ *إليك قائمة الزخارف الاحترافية لاسمك:*\n\n" + "\n".join(decorations)
+        final_response = f"✨ *إليك قائمة الزخارف الاحترافية لاسمك:*\n\n" + "\n".join(decorations) + f"\n\n{DEV_SIGNATURE}"
         await update.message.reply_text(final_response, parse_mode='Markdown')
         return
 
@@ -419,27 +422,27 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
             user_requests[chat_id] = {"url": target_url, "is_audio": is_audio}
             user_selected_mode.pop(chat_id, None)
             if is_audio:
-                await update.message.reply_text(f"🎵 *اختر جودة الصوت المطلوب:*{DEV_SIGNATURE}", reply_markup=get_audio_quality_keyboard(), parse_mode='Markdown')
+                await update.message.reply_text(f"🎵 *اختر جودة الصوت المطلوب:*\n\n{DEV_SIGNATURE}", reply_markup=get_audio_quality_keyboard(), parse_mode='Markdown')
             else:
-                await update.message.reply_text(f"🎬 *اختر دقة الفيديو المطلوب:*{DEV_SIGNATURE}", reply_markup=get_video_quality_keyboard(), parse_mode='Markdown')
+                await update.message.reply_text(f"🎬 *اختر دقة الفيديو المطلوب:*\n\n{DEV_SIGNATURE}", reply_markup=get_video_quality_keyboard(), parse_mode='Markdown')
         else:
             user_requests[chat_id] = {"url": target_url, "is_audio": False}
-            await update.message.reply_text(f"📥 *اختر نوع التحميل المطلوب:*{DEV_SIGNATURE}", reply_markup=get_media_type_keyboard(), parse_mode='Markdown')
+            await update.message.reply_text(f"📥 *اختر نوع التحميل المطلوب:*\n\n{DEV_SIGNATURE}", reply_markup=get_media_type_keyboard(), parse_mode='Markdown')
         return
 
-    await update.message.reply_text(f"يرجى استخدام الأزرار بالأسفل لتنفيذ الخدمات المتاحة 🚀{DEV_SIGNATURE}", parse_mode='Markdown')
+    await update.message.reply_text(f"يرجى استخدام الأزرار بالأسفل لتنفيذ الخدمات المتاحة 🚀\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
 
 async def handle_photo_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     try:
-        await update.message.reply_text(f"🎨 *جاري تحويل الصورة إلى رسم بالنقاط...*{DEV_SIGNATURE}", parse_mode='Markdown')
+        await update.message.reply_text(f"🎨 *جاري تحويل الصورة إلى رسم بالنقاط...*\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
         photo_file = await update.message.photo[-1].get_file()
         downloaded_bytes = await photo_file.download_as_bytearray()
         res = convert_image_to_ascii(bytes(downloaded_bytes))
         if res:
-            await update.message.reply_text(f"✨ *النتيجة:*\n\n{res}{DEV_SIGNATURE}", parse_mode='Markdown')
+            await update.message.reply_text(f"✨ *النتيجة:*\n\n{res}\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
     except:
-        await update.message.reply_text(f"⚠️ حدث خطأ بالمعالجة.{DEV_SIGNATURE}", parse_mode='Markdown')
+        await update.message.reply_text(f"⚠️ حدث خطأ بالمعالجة.\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
 
 if __name__ == '__main__':
     if not TELEGRAM_TOKEN:
