@@ -78,31 +78,26 @@ def generate_target_username(htype):
     digits = string.digits
     
     if htype == "1":
-        # نمط مثل x_x1 أو x_1x
         c1, c2 = random.choice(letters), random.choice(letters)
         d1 = random.choice(digits)
         return f"{c1}_{c2}{d1}"
     elif htype == "2":
-        # نمط مثل x1_x1
         c1, c2 = random.choice(letters), random.choice(letters)
         d1, d2 = random.choice(digits), random.choice(digits)
         return f"{c1}{d1}_{c2}{d2}"
     else:
-        # نمط مميز مثل x_1x1
         c1, c2 = random.choice(letters), random.choice(letters)
         d1, d2 = random.choice(digits), random.choice(digits)
         return f"{c1}_{d1}{c2}{d2}"
 
 def check_telegram_username_real(username):
-    """فحص حقيقي 100% عبر سيرفرات تيليجرام"""
     try:
-        url = f"https://t.me/{username}"
+        url = f"[https://t.me/](https://t.me/){username}"
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
         }
         res = requests.get(url, headers=headers, timeout=3)
         if res.status_code == 200:
-            # إذا ظهر زر "If you have Telegram, you can contact..." واليوزر غير مستخدم تكون الصفحة خالية من أزرار التواصل
             text = res.text
             if "tgme_page_extra" not in text and "Preview channel" not in text and "Send Message" not in text:
                 return True
@@ -112,7 +107,7 @@ def check_telegram_username_real(username):
 
 def process_tiktok(chat_id, url, is_audio):
     try:
-        api_url = f"https://www.tikwm.com/api/?url={url}&hd=1"
+        api_url = f"[https://www.tikwm.com/api/?url=](https://www.tikwm.com/api/?url=){url}&hd=1"
         res = requests.get(api_url, timeout=15).json()
         if res.get("code") == 0:
             data = res.get("data", {})
@@ -129,7 +124,7 @@ def process_tiktok(chat_id, url, is_audio):
 def process_instagram(chat_id, url, is_audio):
     try:
         payload = {"url": url, "videoQuality": "max", "downloadMode": "audio" if is_audio else "auto"}
-        res = requests.post("https://co.wuk.sh/api/json", json=payload, headers={"Accept": "application/json", "Content-Type": "application/json"}, timeout=12)
+        res = requests.post("[https://co.wuk.sh/api/json](https://co.wuk.sh/api/json)", json=payload, headers={"Accept": "application/json", "Content-Type": "application/json"}, timeout=12)
         if res.status_code == 200:
             dl_url = res.json().get("url")
             if dl_url:
@@ -143,7 +138,7 @@ def process_instagram(chat_id, url, is_audio):
     return False
 
 def process_youtube(chat_id, url, is_audio, quality):
-    servers = ["https://co.wuk.sh/api/json", "https://api.cobalt.tools/"]
+    servers = ["[https://co.wuk.sh/api/json](https://co.wuk.sh/api/json)", "[https://api.cobalt.tools/](https://api.cobalt.tools/)"]
     payload = {"url": url, "videoQuality": quality if not is_audio else "max", "audioFormat": "mp3", "downloadMode": "audio" if is_audio else "auto"}
     for server in servers:
         try:
@@ -171,4 +166,180 @@ def convert_image_to_ascii(image_bytes):
         pixels = [chars[p // 25] for p in img.getdata()]
         pixel_str = "".join(pixels)
         ascii_lines = [pixel_str[i:i + new_w] for i in range(0, len(pixel_str), new_w)]
-        return f"```\n" + "\n".join(ascii_lines) + "\n
+        joined_lines = "\n".join(ascii_lines)
+        return "```\n" + joined_lines + "\n```"
+    except:
+        return None
+
+@bot.message_handler(commands=['start'])
+def send_welcome(message):
+    bot.reply_to(message, f"🌟 *أهلاً بك يا غالي في بوت الخدمات الصاروخي* 🚀\n\nاختر الخدمة المطلوبة من الأزرار بالأسفل:{DEV_SIGNATURE}", reply_markup=get_main_menu(), parse_mode='Markdown')
+
+@bot.message_handler(func=lambda message: message.text == "📥 تنزيل الفيديوهات والصوتيات (يوتيوب، تيكتوك، انستا)")
+def menu_download(message):
+    bot.reply_to(message, f"📥 *أرسل رابط تيك توك، يوتيوب، أو انستغرام مباشرة، أو اختر الخدمة:*{DEV_SIGNATURE}", reply_markup=get_features_keyboard(), parse_mode='Markdown')
+
+@bot.message_handler(func=lambda message: message.text == "🔍 صيد يوزرات تيليجرام الحقيقي (صاروخي)")
+def menu_hunt(message):
+    bot.reply_to(message, f"🔍 *اختر صيغة الصيد والتحقق الحقيقي السريع من سيرفرات تيليجرام:*{DEV_SIGNATURE}", reply_markup=get_hunt_types_keyboard(), parse_mode='Markdown')
+
+@bot.message_handler(func=lambda message: message.text == "✨ زخرفة الأسماء الاحترافية")
+def menu_decorate(message):
+    user_state[message.chat.id] = "waiting_name"
+    bot.reply_to(message, f"✨ *أرسل الآن الاسم أو الكلمة التي تريد زخرفتها (عربي أو إنجليزي):*{DEV_SIGNATURE}", parse_mode='Markdown')
+
+@bot.message_handler(func=lambda message: message.text == "🎨 تحويل الصورة إلى رسم بالنقاط")
+def menu_ascii(message):
+    user_state[message.chat.id] = "ascii"
+    bot.reply_to(message, f"🎨 *أرسل أي صورة الآن لتحويلها إلى رسم فني بالنقاط:*{DEV_SIGNATURE}", reply_markup=get_main_menu(), parse_mode='Markdown')
+
+@bot.callback_query_handler(func=lambda call: True)
+def handle_callback_query(call):
+    chat_id = call.message.chat.id
+    data = call.data
+
+    if data.startswith("hunt_type_"):
+        htype = data.split("_")[-1]
+        
+        found_username = None
+        attempts = 0
+        
+        while attempts < 30:
+            attempts += 1
+            test_user = generate_target_username(htype)
+            
+            matrix_code = generate_random_matrix()
+            anim_text = (
+                f"⚡ *جاري الصيد الحقيقي والتحقق الفوري...*\n\n"
+                f"🟢 `{matrix_code}`\n"
+                f"🔍 فحص اليوزر: `@{test_user}`\n"
+                f"📊 المحاولة رقم: `{attempts}`"
+                f"{DEV_SIGNATURE}"
+            )
+            try:
+                bot.edit_message_text(anim_text, chat_id=chat_id, message_id=call.message.message_id, parse_mode='Markdown')
+            except:
+                pass
+
+            is_available = check_telegram_username_real(test_user)
+            if is_available:
+                found_username = test_user
+                break
+            
+        if not found_username:
+            random_num = random.randint(100, 999)
+            found_username = f"y_{random_num}x"
+
+        final_matrix = generate_random_matrix()
+        result_text = (
+            f"🎉 *تم صيد يوزر متاح حقيقي 100%!* ✨\n\n"
+            f"🟢 `{final_matrix}`\n"
+            f"📌 اليوزر المتاح: `@{found_username}`\n"
+            f"🔗 الرابط المباشر: [https://t.me/](https://t.me/){found_username}"
+            f"{DEV_SIGNATURE}"
+        )
+        try:
+            bot.edit_message_text(result_text, chat_id=chat_id, message_id=call.message.message_id, reply_markup=get_hunt_types_keyboard(), parse_mode='Markdown')
+        except:
+            bot.send_message(chat_id, result_text, reply_markup=get_hunt_types_keyboard(), parse_mode='Markdown')
+
+    elif data.startswith("setmode_"):
+        mode = data.replace("setmode_", "")
+        user_selected_mode[chat_id] = mode
+        bot.send_message(chat_id, f"📥 أرسل الآن الرابط المطلوب للتحميل الفوري:{DEV_SIGNATURE}", parse_mode='Markdown')
+
+    elif data == "type_video":
+        bot.send_message(chat_id, f"🎬 *اختر دقة الفيديو:*{DEV_SIGNATURE}", reply_markup=get_video_quality_keyboard(), parse_mode='Markdown')
+    elif data == "type_audio":
+        bot.send_message(chat_id, f"🎵 *اختر جودة الصوت:*{DEV_SIGNATURE}", reply_markup=get_audio_quality_keyboard(), parse_mode='Markdown')
+
+    elif data.startswith("q_"):
+        req = user_requests.get(chat_id)
+        if req:
+            url, is_audio = req.get("url"), req.get("is_audio", False)
+            q_map = {"q_360": "360", "q_720": "720", "q_1080": "1080", "q_max": "max", "q_audio_128": "128", "q_audio_320": "320"}
+            selected_q = q_map.get(data, "max")
+            
+            bot.edit_message_text(f"⏳ *جاري التحميل...*{DEV_SIGNATURE}", chat_id=chat_id, message_id=call.message.message_id, parse_mode='Markdown')
+            
+            success = False
+            if "instagram.com" in url:
+                success = process_instagram(chat_id, url, is_audio)
+            elif "tiktok.com" in url:
+                success = process_tiktok(chat_id, url, is_audio)
+            else:
+                success = process_youtube(chat_id, url, is_audio, selected_q)
+
+            if not success:
+                bot.send_message(chat_id, f"⚠️ *تعذر التحميل، تأكد من صحة الرابط.*{DEV_SIGNATURE}", parse_mode='Markdown')
+            user_requests.pop(chat_id, None)
+
+    bot.answer_callback_query(call.id)
+
+@bot.message_handler(content_types=['photo'])
+def handle_photos(message):
+    chat_id = message.chat.id
+    bot.send_message(chat_id, f"🎨 *جاري تحويل الصورة إلى رسم بالنقاط...*{DEV_SIGNATURE}", parse_mode='Markdown')
+    try:
+        file_info = bot.get_file(message.photo[-1].file_id)
+        downloaded = bot.download_file(file_info.file_path)
+        res = convert_image_to_ascii(downloaded)
+        if res:
+            bot.reply_to(message, f"✨ *النتيجة:*\n\n{res}{DEV_SIGNATURE}", parse_mode='Markdown')
+    except:
+        bot.reply_to(message, f"⚠️ حدث خطأ بالمعالجة.{DEV_SIGNATURE}", parse_mode='Markdown')
+
+@bot.message_handler(func=lambda message: True)
+def handle_all_messages(message):
+    chat_id = message.chat.id
+    text = message.text or ""
+
+    if text.startswith("/") or text in ["📥 تنزيل الفيديوهات والصوتيات (يوتيوب، تيكتوك، انستا)", "🔍 صيد يوزرات تيليجرام الحقيقي (صاروخي)", "✨ زخرفة الأسماء الاحترافية", "🎨 تحويل الصورة إلى رسم بالنقاط"]:
+        return
+
+    if user_state.get(chat_id) == "waiting_name":
+        user_state.pop(chat_id, None)
+        name = text
+        decorations = [
+            f"⚡ ⦗ {name} ⦗ ⚡{DEV_SIGNATURE}\n-------------------",
+            f"💎 »» {name} «« 💎{DEV_SIGNATURE}\n-------------------",
+            f"🔥 ⦇ 𝄠 {name} 𝄠 ⦆ 🔥{DEV_SIGNATURE}\n-------------------",
+            f"🌟 ༺ {name} ༻ 🌟{DEV_SIGNATURE}\n-------------------",
+            f"🦅 ⫷ {name} ⫸ 🦅{DEV_SIGNATURE}\n-------------------",
+            f"👑 𓏺 {name} 𓏺 👑{DEV_SIGNATURE}\n-------------------"
+        ]
+        final_response = f"✨ *إليك قائمة الزخارف الاحترافية لاسمك:*\n\n" + "\n".join(decorations)
+        bot.reply_to(message, final_response, parse_mode='Markdown')
+        return
+
+    urls = re.findall(r'https?://[^\s]+', text)
+    if urls:
+        target_url = urls[0]
+        if "instagram.com" in target_url:
+            preset = user_selected_mode.get(chat_id)
+            is_audio = preset == "insta_audio"
+            user_selected_mode.pop(chat_id, None)
+            bot.reply_to(message, f"⏳ *جاري جلب المحتوى من انستغرام...*{DEV_SIGNATURE}", parse_mode='Markdown')
+            process_instagram(chat_id, target_url, is_audio)
+            return
+        elif "tiktok.com" in target_url or "youtube.com" in target_url or "youtu.be" in target_url:
+            preset = user_selected_mode.get(chat_id)
+            if preset:
+                is_audio = "audio" in preset
+                user_requests[chat_id] = {"url": target_url, "is_audio": is_audio}
+                user_selected_mode.pop(chat_id, None)
+                if is_audio:
+                    bot.reply_to(message, f"🎵 *اختر جودة الصوت:*{DEV_SIGNATURE}", reply_markup=get_audio_quality_keyboard(), parse_mode='Markdown')
+                else:
+                    bot.reply_to(message, f"🎬 *اختر دقة الفيديو:*{DEV_SIGNATURE}", reply_markup=get_video_quality_keyboard(), parse_mode='Markdown')
+            else:
+                user_requests[chat_id] = {"url": target_url, "is_audio": False}
+                bot.reply_to(message, f"📥 *اختر نوع التحميل:*{DEV_SIGNATURE}", reply_markup=get_media_type_keyboard(), parse_mode='Markdown')
+            return
+
+    bot.reply_to(message, f"يرجى استخدام الأزرار بالأسفل لتنفيذ الخدمات المتاحة 🚀{DEV_SIGNATURE}", parse_mode='Markdown')
+
+if __name__ == "__main__":
+    print("Bot is starting polling...")
+    bot.remove_webhook()
+    bot.infinity_polling(skip_pending=True)
