@@ -168,36 +168,33 @@ async def process_tiktok(context: ContextTypes.DEFAULT_TYPE, chat_id: int, url: 
 
 async def process_instagram(context: ContextTypes.DEFAULT_TYPE, chat_id: int, url: str, is_audio: bool):
     try:
-        payload = {"url": url, "videoQuality": "max", "downloadMode": "audio" if is_audio else "auto"}
-        res = requests.post("https://co.wuk.sh/api/json", json=payload, headers={"Accept": "application/json", "Content-Type": "application/json"}, timeout=15)
-        if res.status_code == 200:
-            dl_url = res.json().get("url")
-            if dl_url:
-                if is_audio:
-                    await context.bot.send_audio(chat_id, dl_url, caption=f"🎵 *انستغرام | تم تحميل الصوت/الأغنية بنجاح*{DEV_SIGNATURE}", parse_mode='Markdown')
-                else:
-                    await context.bot.send_video(chat_id, dl_url, caption=f"📸 *انستغرام | تم تحميل الفيديو بنجاح*{DEV_SIGNATURE}", parse_mode='Markdown')
-                return True
+        # سيرفر خالي تماماً من أي إشتركات أو شروط خارجية
+        api_url = f"https://api.vkrdown.com/v1/insta?url={url}"
+        res = requests.get(api_url, timeout=15).json()
+        dl_url = res.get("data", {}).get("url") or res.get("url")
+        if dl_url:
+            if is_audio:
+                await context.bot.send_audio(chat_id, dl_url, caption=f"🎵 *انستغرام | تم تحميل الصوت بنجاح*{DEV_SIGNATURE}", parse_mode='Markdown')
+            else:
+                await context.bot.send_video(chat_id, dl_url, caption=f"📸 *انستغرام | تم تحميل الفيديو بنجاح*{DEV_SIGNATURE}", parse_mode='Markdown')
+            return True
     except:
         pass
     return False
 
 async def process_youtube(context: ContextTypes.DEFAULT_TYPE, chat_id: int, url: str, is_audio: bool, quality: str):
-    servers = ["https://co.wuk.sh/api/json", "https://api.cobalt.tools/"]
-    payload = {"url": url, "videoQuality": quality if not is_audio else "max", "audioFormat": "mp3", "downloadMode": "audio" if is_audio else "auto"}
-    for server in servers:
-        try:
-            res = requests.post(server, json=payload, headers={"Accept": "application/json", "Content-Type": "application/json"}, timeout=15)
-            if res.status_code == 200:
-                dl_url = res.json().get("url")
-                if dl_url:
-                    if is_audio:
-                        await context.bot.send_audio(chat_id, dl_url, caption=f"🎵 *يوتيوب | تم تحميل الصوت بنجاح*{DEV_SIGNATURE}", parse_mode='Markdown')
-                    else:
-                        await context.bot.send_video(chat_id, dl_url, caption=f"🎬 *يوتيوب | تم تحميل الفيديو بنجاح*{DEV_SIGNATURE}", parse_mode='Markdown')
-                    return True
-        except:
-            continue
+    try:
+        api_url = f"https://api.vkrdown.com/v1/youtube?url={url}"
+        res = requests.get(api_url, timeout=15).json()
+        dl_url = res.get("data", {}).get("url") or res.get("url")
+        if dl_url:
+            if is_audio:
+                await context.bot.send_audio(chat_id, dl_url, caption=f"🎵 *يوتيوب | تم تحميل الصوت بنجاح*{DEV_SIGNATURE}", parse_mode='Markdown')
+            else:
+                await context.bot.send_video(chat_id, dl_url, caption=f"🎬 *يوتيوب | تم تحميل الفيديو بنجاح*{DEV_SIGNATURE}", parse_mode='Markdown')
+            return True
+    except:
+        pass
     return False
 
 def convert_image_to_ascii(image_bytes):
@@ -225,7 +222,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    # الاستجابة الفورية المباشرة للغاء اللودينج بالكامل
+    # الإجابة اللحظية المباشرة التي تلغي علامة التحميل بالكامل
     await query.answer()
 
     chat_id = query.message.chat_id
@@ -348,5 +345,5 @@ if __name__ == '__main__':
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo_messages))
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_text_messages))
 
-    print("Bot is running with python-telegram-bot async framework...")
+    print("Bot is running smoothly...")
     app.run_polling()
