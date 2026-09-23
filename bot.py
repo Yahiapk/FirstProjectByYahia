@@ -8,6 +8,7 @@ import requests
 from PIL import Image
 from io import BytesIO
 import yt_dlp
+from pytubefix import YouTube
 
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
@@ -153,98 +154,33 @@ async def hunt_username_task(context: ContextTypes.DEFAULT_TYPE, chat_id: int, m
     except:
         await context.bot.send_message(chat_id, result_text, reply_markup=get_hunt_types_keyboard(), parse_mode='Markdown')
 
-# المحرك المتقدم للتنزيل مع تدوير الـ APIs وسيرفرات الفولباك
-def download_youtube_advanced(url, is_audio, quality="720"):
+# تنزيل يوتيوب باستخدام pytubefix المخصصة للالتفاف والتغلب على الحظر
+def download_youtube_fix(url, is_audio):
     filename = f"dl_{int(time.time())}_{random.randint(1000,9999)}"
-    ext = "mp3" if is_audio else "mp4"
-    file_path = f"{filename}.{ext}"
-    
-    # قائمة بإنستانسات Cobalt المتاحة للتنقل بينها
-    cobalt_instances = [
-        "https://co.wuk.sh/api/json",
-        "https://api.cobalt.tools/api/json",
-        "https://cobalt.stream.pet/api/json",
-        "https://cobalt.q1.is/api/json"
-    ]
-    
-    headers = {
-        "Accept": "application/json",
-        "Content-Type": "application/json",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-    }
-    
-    payload = {
-        "url": url,
-        "isAudioOnly": is_audio,
-        "aFormat": "mp3",
-        "vQuality": "720" if quality in ["360", "720"] else "1080"
-    }
-
-    # المحاولة الأولى: استخدام سيرفرات Cobalt المتعددة
-    for api in cobalt_instances:
-        try:
-            res = requests.post(api, json=payload, headers=headers, timeout=10)
-            if res.status_code == 200:
-                data = res.json()
-                download_url = data.get("url")
-                if download_url:
-                    m_res = requests.get(download_url, stream=True, timeout=90)
-                    if m_res.status_code == 200:
-                        with open(file_path, 'wb') as f:
-                            for chunk in m_res.iter_content(chunk_size=32768):
-                                f.write(chunk)
-                        return file_path
-        except Exception as e:
-            print(f"Cobalt Instance Error ({api}): {e}")
-            continue
-
-    # المحاولة الثانية: استخدام سيرفرات Invidious لتوليد روابط التحميل المباشرة
     try:
-        video_id_match = re.search(r'(?:v=|\/)([0-9A-Za-z_-]{11})', url)
-        if video_id_match:
-            video_id = video_id_match.group(1)
-            invidious_instances = [
-                "https://invidious.nerdvpn.de",
-                "https://inv.tux.pizza",
-                "https://invidious.drgns.space"
-            ]
-            for inv_host in invidious_instances:
-                try:
-                    inv_res = requests.get(f"{inv_host}/api/v1/videos/{video_id}", timeout=8).json()
-                    if is_audio:
-                        adaptive = inv_res.get("adaptiveFormats", [])
-                        audio_streams = [f for f in adaptive if "audio/" in f.get("type", "")]
-                        if audio_streams:
-                            dl_link = audio_streams[0]["url"]
-                    else:
-                        format_streams = inv_res.get("formatStreams", [])
-                        if format_streams:
-                            dl_link = format_streams[0]["url"]
-                        else:
-                            dl_link = None
-
-                    if dl_link:
-                        m_res = requests.get(dl_link, stream=True, timeout=90)
-                        if m_res.status_code == 200:
-                            with open(file_path, 'wb') as f:
-                                for chunk in m_res.iter_content(chunk_size=32768):
-                                    f.write(chunk)
-                            return file_path
-                except:
-                    continue
+        # استخدام client='WEB' أو 'ANDROID' لتجاوز القيود
+        yt = YouTube(url, client='WEB')
+        if is_audio:
+            stream = yt.streams.filter(only_audio=True).first()
+            out_file = stream.download(filename=f"{filename}.mp3")
+        else:
+            stream = yt.streams.filter(progressive=True, file_extension='mp4').get_highest_resolution()
+            if not stream:
+                stream = yt.streams.filter(file_extension='mp4').first()
+            out_file = stream.download(filename=f"{filename}.mp4")
+        return out_file
     except Exception as e:
-        print(f"Invidious Error: {e}")
-
-    return None
+        print(f"Pytubefix Error: {e}")
+        return None
 
 def download_media_direct(url, is_audio, quality="best"):
-    # 1. يوتيوب: استخدام محرك التدوير المتقدم لتخطي حظر السيرفر بالكامل
+    # 1. إذا كان يوتيوب، جرب pytubefix أحدث مكتبة للالتفاف على يوتيوب
     if "youtube.com" in url or "youtu.be" in url:
-        yt_file = download_youtube_advanced(url, is_audio, quality)
+        yt_file = download_youtube_fix(url, is_audio)
         if yt_file and os.path.exists(yt_file):
             return yt_file
 
-    # 2. للمواقع الأخرى (تيكتوك، انستا، بينترست) أو محاولة احتياطية بـ yt-dlp
+    # 2. للمواقع الأخرى (تيكتوك، انستا، بينترست) أو كخيار ثانٍ
     filename = f"dl_{int(time.time())}_{random.randint(1000,9999)}"
     ydl_opts = {
         'outtmpl': f'{filename}.%(ext)s',
