@@ -3,17 +3,14 @@ import telebot
 import requests
 import time
 import re
-from flask import Flask, request
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-# جلب المفاتيح والرموز من متغيرات البيئة (Environment Variables) بـ Render
-TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "8708302621:AAFAKBSzXgbq7p5fMimAIJuqqVEcIivTFmw")
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "AIzaSyBi7s4L2yhv6mCBbvC4f8-bY1Lf-gpanBk")
-RENDER_EXTERNAL_URL = os.environ.get("RENDER_EXTERNAL_URL", "")
+# المفاتيح مثبتة مباشرة حسب طلبك
+TELEGRAM_TOKEN = "8708302621:AAFAKBSzXgbq7p5fMimAIJuqqVEcIivTFmw"
+GEMINI_API_KEY = "AIzaSyBi7s4L2yhv6mCBbvC4f8-bY1Lf-gpanBk"
+ADMIN_ID = 1283009799
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN, threaded=False)
-app = Flask(__name__)
-
 BOT_ID = int(TELEGRAM_TOKEN.split(':')[0])
 
 GEMINI_MODELS = [
@@ -255,31 +252,7 @@ def handle_all_messages(message):
 
     bot.reply_to(message, "⚠️ السيرفر عليه ضغط حالياً، جرب إعادة الرسالة بعد ثوانٍ.")
 
-@app.route('/' + TELEGRAM_TOKEN, methods=['POST'])
-def getMessage():
-    try:
-        json_string = request.get_data().decode('utf-8')
-        update = telebot.types.Update.de_json(json_string)
-        bot.process_new_updates([update])
-    except Exception as e:
-        print(f"Error processing update: {e}")
-    return "!", 200
-
-@app.route("/")
-def webhook():
-    if RENDER_EXTERNAL_URL:
-        webhook_url = f"{RENDER_EXTERNAL_URL}/{TELEGRAM_TOKEN}"
-    else:
-        webhook_url = f"https://{request.host}/{TELEGRAM_TOKEN}"
-        
-    try:
-        bot.remove_webhook()
-        time.sleep(1)
-        bot.set_webhook(url=webhook_url)
-        return f"تم تفعيل الـ Webhook بنجاح على Render: {webhook_url}", 200
-    except Exception as e:
-        return f"حدث خطأ: {e}", 500
-
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+    print("Bot is starting polling...")
+    bot.remove_webhook()
+    bot.infinity_polling(skip_pending=True)
