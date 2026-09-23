@@ -24,7 +24,7 @@ DEV_SIGNATURE = "\n\n━━━━━━━━━━━━━\n💻 *Dev: Yahia |
 
 def get_main_menu():
     keyboard = [
-        [KeyboardButton("📥 تنزيل الفيديوهات والصوتيات (يوتيوب، تيكتوك، انستا)")],
+        [KeyboardButton("📥 تنزيل الفيديوهات والصوتيات (يوتيوب، تيكتوك، انستا، بينترست)")],
         [KeyboardButton("🔍 صيد يوزرات تيليجرام الحقيقي (صاروخي)")],
         [KeyboardButton("✨ زخرفة الأسماء الاحترافية")],
         [KeyboardButton("🎨 تحويل الصورة إلى رسم بالنقاط")]
@@ -37,8 +37,8 @@ def get_features_keyboard():
         [InlineKeyboardButton("🎶 تنزيل أغنية تيك توك", callback_data="setmode_tt_audio")],
         [InlineKeyboardButton("📹 تنزيل فيديو يوتيوب", callback_data="setmode_yt_video")],
         [InlineKeyboardButton("🎵 تنزيل أغنية يوتيوب", callback_data="setmode_yt_audio")],
-        [InlineKeyboardButton("📸 تنزيل فيديو انستغرام", callback_data="setmode_insta_video")],
-        [InlineKeyboardButton("🎵 تنزيل صوت/أغنية انستغرام", callback_data="setmode_insta_audio")]
+        [InlineKeyboardButton("📸 تنزيل فيديو/صورة انستغرام", callback_data="setmode_insta_video")],
+        [InlineKeyboardButton("📌 تنزيل صور/فيديو بينترست", callback_data="setmode_pin")]
     ]
     return InlineKeyboardMarkup(keyboard)
 
@@ -162,7 +162,7 @@ def download_media_direct(url, is_audio):
     if is_audio:
         ydl_opts['format'] = 'bestaudio/best'
     else:
-        ydl_opts['format'] = 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best'
+        ydl_opts['format'] = 'bestvideo+bestaudio/best'
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=True)
@@ -173,8 +173,11 @@ async def process_media_download(context: ContextTypes.DEFAULT_TYPE, chat_id: in
     try:
         file_path = await asyncio.to_thread(download_media_direct, url, is_audio)
         if file_path and os.path.exists(file_path):
+            ext = os.path.splitext(file_path)[1].lower()
             with open(file_path, 'rb') as media_file:
-                if is_audio:
+                if ext in ['.jpg', '.jpeg', '.png', '.webp']:
+                    await context.bot.send_photo(chat_id, media_file, caption=f"📌 *Pinterest | تم تنزيل الصورة بنجاح*{DEV_SIGNATURE}", parse_mode='Markdown')
+                elif is_audio:
                     await context.bot.send_audio(chat_id, media_file, caption=f"🎵 *تم تحميل الصوت بنجاح*{DEV_SIGNATURE}", parse_mode='Markdown')
                 else:
                     await context.bot.send_video(chat_id, media_file, caption=f"🎬 *تم تحميل الفيديو بنجاح*{DEV_SIGNATURE}", parse_mode='Markdown')
@@ -249,8 +252,8 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
     chat_id = update.effective_chat.id
     text = update.message.text or ""
 
-    if text == "📥 تنزيل الفيديوهات والصوتيات (يوتيوب، تيكتوك، انستا)":
-        await update.message.reply_text(f"📥 *أرسل رابط تيك توك، يوتيوب، أو انستغرام مباشرة، أو اختر الخدمة:*{DEV_SIGNATURE}", reply_markup=get_features_keyboard(), parse_mode='Markdown')
+    if text.startswith("📥 تنزيل الفيديوهات والصوتيات"):
+        await update.message.reply_text(f"📥 *أرسل رابط تيك توك، يوتيوب، انستغرام، أو بينترست مباشرة:*{DEV_SIGNATURE}", reply_markup=get_features_keyboard(), parse_mode='Markdown')
         return
     elif text == "🔍 صيد يوزرات تيليجرام الحقيقي (صاروخي)":
         await update.message.reply_text(f"🔍 *اختر صيغة الصيد والتحقق الحقيقي السريع من سيرفرات تيليجرام:*{DEV_SIGNATURE}", reply_markup=get_hunt_types_keyboard(), parse_mode='Markdown')
@@ -282,6 +285,12 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
     urls = re.findall(r'https?://[^\s]+', text)
     if urls:
         target_url = urls[0]
+        # دعم Pinterest أو التحميل المباشر للصور/الفيديوهات
+        if "pinterest.com" in target_url or "pin.it" in target_url:
+            await update.message.reply_text(f"⏳ *جاري التحميل من Pinterest...*{DEV_SIGNATURE}", parse_mode='Markdown')
+            asyncio.create_task(process_media_download(context, chat_id, target_url, False))
+            return
+
         preset = user_selected_mode.get(chat_id)
         if preset:
             is_audio = "audio" in preset
@@ -322,5 +331,5 @@ if __name__ == '__main__':
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo_messages))
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_text_messages))
 
-    print("Bot is running securely with Environment Variables...")
+    print("Bot is running smoothly with Pinterest support...")
     app.run_polling()
