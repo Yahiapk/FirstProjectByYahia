@@ -8,13 +8,15 @@ import requests
 from PIL import Image
 from io import BytesIO
 import yt_dlp
-from pytubefix import YouTube
 
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
 
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 ADMIN_ID = int(os.environ.get("ADMIN_ID", "1283009799"))
+
+# مفتاح API المفعل مالتك
+RAPIDAPI_KEY = os.environ.get("RAPIDAPI_KEY", "0276121538msh1cbbbeec1cc1582p11753ajsn0b6bf3fabb83")
 
 user_requests = {}
 user_selected_mode = {}
@@ -154,33 +156,59 @@ async def hunt_username_task(context: ContextTypes.DEFAULT_TYPE, chat_id: int, m
     except:
         await context.bot.send_message(chat_id, result_text, reply_markup=get_hunt_types_keyboard(), parse_mode='Markdown')
 
-# تنزيل يوتيوب باستخدام pytubefix المخصصة للالتفاف والتغلب على الحظر
-def download_youtube_fix(url, is_audio):
+# تنزيل يوتيوب عبر RapidAPI
+def download_youtube_rapidapi(url, is_audio):
     filename = f"dl_{int(time.time())}_{random.randint(1000,9999)}"
-    try:
-        # استخدام client='WEB' أو 'ANDROID' لتجاوز القيود
-        yt = YouTube(url, client='WEB')
-        if is_audio:
-            stream = yt.streams.filter(only_audio=True).first()
-            out_file = stream.download(filename=f"{filename}.mp3")
-        else:
-            stream = yt.streams.filter(progressive=True, file_extension='mp4').get_highest_resolution()
-            if not stream:
-                stream = yt.streams.filter(file_extension='mp4').first()
-            out_file = stream.download(filename=f"{filename}.mp4")
-        return out_file
-    except Exception as e:
-        print(f"Pytubefix Error: {e}")
+    ext = "mp3" if is_audio else "mp4"
+    file_path = f"{filename}.{ext}"
+
+    api_url = "https://youtube-media-downloader.p.rapidapi.com/v2/video/details"
+    headers = {
+        "x-rapidapi-key": RAPIDAPI_KEY,
+        "x-rapidapi-host": "youtube-media-downloader.p.rapidapi.com"
+    }
+    
+    # استخراج الـ Video ID من الرابط
+    video_id_match = re.search(r'(?:v=|\/)([0-9A-Za-z_-]{11})', url)
+    if not video_id_match:
         return None
+    video_id = video_id_match.group(1)
+
+    try:
+        res = requests.get(api_url, headers=headers, params={"videoId": video_id}, timeout=15)
+        if res.status_code == 200:
+            data = res.json()
+            download_link = None
+            
+            if is_audio:
+                audios = data.get("audios", {}).get("items", [])
+                if audios:
+                    download_link = audios[0].get("url")
+            else:
+                videos = data.get("videos", {}).get("items", [])
+                if videos:
+                    download_link = videos[0].get("url")
+
+            if download_link:
+                r = requests.get(download_link, stream=True, timeout=120)
+                if r.status_code == 200:
+                    with open(file_path, 'wb') as f:
+                        for chunk in r.iter_content(chunk_size=32768):
+                            f.write(chunk)
+                    return file_path
+    except Exception as e:
+        print(f"API Download Error: {e}")
+
+    return None
 
 def download_media_direct(url, is_audio, quality="best"):
-    # 1. إذا كان يوتيوب، جرب pytubefix أحدث مكتبة للالتفاف على يوتيوب
+    # 1. إذا كان يوتيوب نستخدم RapidAPI لتخطي الحظر
     if "youtube.com" in url or "youtu.be" in url:
-        yt_file = download_youtube_fix(url, is_audio)
+        yt_file = download_youtube_rapidapi(url, is_audio)
         if yt_file and os.path.exists(yt_file):
             return yt_file
 
-    # 2. للمواقع الأخرى (تيكتوك، انستا، بينترست) أو كخيار ثانٍ
+    # 2. تيك توك، انستغرام، بينترست باستخدام yt-dlp المباشر
     filename = f"dl_{int(time.time())}_{random.randint(1000,9999)}"
     ydl_opts = {
         'outtmpl': f'{filename}.%(ext)s',
@@ -188,11 +216,8 @@ def download_media_direct(url, is_audio, quality="best"):
         'no_warnings': True,
         'nocheckcertificate': True,
         'geo_bypass': True,
-        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
     }
-
-    if os.path.exists("cookies.txt"):
-        ydl_opts['cookiefile'] = "cookies.txt"
 
     if is_audio:
         ydl_opts['format'] = 'bestaudio/best'
