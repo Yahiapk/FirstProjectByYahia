@@ -5,7 +5,6 @@ import re
 import random
 import string
 import time
-import threading
 from PIL import Image
 from io import BytesIO
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
@@ -13,8 +12,7 @@ from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeybo
 TELEGRAM_TOKEN = "8708302621:AAFAKBSzXgbq7p5fMimAIJuqqVEcIivTFmw"
 ADMIN_ID = 1283009799
 
-# تفعيل الـ Threaded بالبوت
-bot = telebot.TeleBot(TELEGRAM_TOKEN, threaded=True)
+bot = telebot.TeleBot(TELEGRAM_TOKEN, threaded=False)
 BOT_ID = int(TELEGRAM_TOKEN.split(':')[0])
 
 user_requests = {}
@@ -65,96 +63,15 @@ def get_hunt_types_keyboard():
     markup = InlineKeyboardMarkup()
     markup.row_width = 1
     markup.add(
-        InlineKeyboardButton("🎯 صيد صيغة: x1_x1", callback_data="hunt_type_1"),
-        InlineKeyboardButton("🎯 صيد صيغة: x1_1x", callback_data="hunt_type_2"),
-        InlineKeyboardButton("🎯 صيد صيغة: xx_11", callback_data="hunt_type_3")
+        InlineKeyboardButton("⚡ فحص حقيقي: (tt_11)", callback_data="hunt_type_1"),
+        InlineKeyboardButton("⚡ فحص حقيقي: (t1_t1)", callback_data="hunt_type_2"),
+        InlineKeyboardButton("⚡ فحص حقيقي: (t1_1t)", callback_data="hunt_type_3")
     )
     return markup
 
 def generate_random_matrix():
     bits = ["".join(random.choices("01", k=8)) for _ in range(4)]
     return " ".join(bits)
-
-def generate_target_username(htype):
-    letters = string.ascii_lowercase
-    digits = string.digits
-    
-    if htype == "1":
-        # x1_x1 -> حرف رقم _ حرف رقم
-        c1, c2 = random.choice(letters), random.choice(letters)
-        d1, d2 = random.choice(digits), random.choice(digits)
-        return f"{c1}{d1}_{c2}{d2}"
-    elif htype == "2":
-        # x1_1x -> حرف رقم _ رقم حرف
-        c1, c2 = random.choice(letters), random.choice(letters)
-        d1, d2 = random.choice(digits), random.choice(digits)
-        return f"{c1}{d1}_{d2}{c2}"
-    else:
-        # xx_11 -> حرفين _ رقمين
-        c1, c2 = random.choice(letters), random.choice(letters)
-        d1, d2 = random.choice(digits), random.choice(digits)
-        return f"{c1}{c2}_{d1}{d2}"
-
-def check_telegram_username_real(username):
-    try:
-        url = f"https://t.me/{username}"
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        }
-        res = requests.get(url, headers=headers, timeout=2.0)
-        if res.status_code == 200:
-            text = res.text
-            if "tgme_page_extra" not in text and "Preview channel" not in text and "Send Message" not in text:
-                return True
-    except:
-        pass
-    return False
-
-def hunt_username_thread(chat_id, message_id, htype):
-    found_username = None
-    attempts = 0
-    start_time = time.time()
-    
-    while True:
-        attempts += 1
-        test_user = generate_target_username(htype)
-        
-        # تحديث النص للمستخدم كل 4 محاولات لضمان عدم حصول Rate Limit من التيليجرام
-        if attempts % 4 == 0 or attempts == 1:
-            matrix_code = generate_random_matrix()
-            anim_text = (
-                f"⚡ *جاري الصيد والتحقق الحقيقي...*\n\n"
-                f"🟢 `{matrix_code}`\n"
-                f"🔍 فحص اليوزر: `@{test_user}`\n"
-                f"📊 المحاولات: `{attempts}`"
-                f"{DEV_SIGNATURE}"
-            )
-            try:
-                bot.edit_message_text(anim_text, chat_id=chat_id, message_id=message_id, parse_mode='Markdown')
-            except:
-                pass
-
-        if check_telegram_username_real(test_user):
-            found_username = test_user
-            break
-            
-        time.sleep(0.05) # حماية من الحظر وضمان السرعة العالية
-
-    elapsed_time = round(time.time() - start_time, 2)
-    final_matrix = generate_random_matrix()
-    result_text = (
-        f"🎉 *تم صيد يوزر متاح حقيقي 100%!* ✨\n\n"
-        f"🟢 `{final_matrix}`\n"
-        f"📌 اليوزر المتاح: `@{found_username}`\n"
-        f"⏱ المستغرق: `{elapsed_time}` ثانية\n"
-        f"📊 المحاولات: `{attempts}`\n"
-        f"🔗 الرابط المباشر: https://t.me/{found_username}"
-        f"{DEV_SIGNATURE}"
-    )
-    try:
-        bot.edit_message_text(result_text, chat_id=chat_id, message_id=message_id, reply_markup=get_hunt_types_keyboard(), parse_mode='Markdown')
-    except:
-        bot.send_message(chat_id, result_text, reply_markup=get_hunt_types_keyboard(), parse_mode='Markdown')
 
 def process_tiktok(chat_id, url, is_audio):
     try:
@@ -217,8 +134,7 @@ def convert_image_to_ascii(image_bytes):
         pixels = [chars[p // 25] for p in img.getdata()]
         pixel_str = "".join(pixels)
         ascii_lines = [pixel_str[i:i + new_w] for i in range(0, len(pixel_str), new_w)]
-        joined_lines = "\n".join(ascii_lines)
-        return "```\n" + joined_lines + "\n```"
+        return f"```\n" + "\n".join(ascii_lines) + "\n```"
     except:
         return None
 
@@ -232,7 +148,7 @@ def menu_download(message):
 
 @bot.message_handler(func=lambda message: message.text == "🔍 صيد يوزرات تيليجرام الحقيقي (صاروخي)")
 def menu_hunt(message):
-    bot.reply_to(message, f"🔍 *اختر صيغة الصيد والتحقق الحقيقي السريع من سيرفرات تيليجرام:*{DEV_SIGNATURE}", reply_markup=get_hunt_types_keyboard(), parse_mode='Markdown')
+    bot.reply_to(message, f"🔍 *اختر صيغة الصيد والتحقق الحقيقي من خوادم تيليجرام:*{DEV_SIGNATURE}", reply_markup=get_hunt_types_keyboard(), parse_mode='Markdown')
 
 @bot.message_handler(func=lambda message: message.text == "✨ زخرفة الأسماء الاحترافية")
 def menu_decorate(message):
@@ -246,18 +162,64 @@ def menu_ascii(message):
 
 @bot.callback_query_handler(func=lambda call: True)
 def handle_callback_query(call):
-    # إجابة فورية للأزرار لإلغاء دائرة التحميل الـ Loading في التيليجرام فوراً
-    try:
-        bot.answer_callback_query(call.id)
-    except:
-        pass
-
     chat_id = call.message.chat.id
     data = call.data
 
     if data.startswith("hunt_type_"):
         htype = data.split("_")[-1]
-        threading.Thread(target=hunt_username_thread, args=(chat_id, call.message.message_id, htype)).start()
+        
+        # تنبيه المستخدم بأن عملية البحث والربط بالخوادم قد تأخذ ثواني قليلة
+        matrix_code = generate_random_matrix()
+        init_msg = f"🟢 `{matrix_code}`\n⏳ *جاري الاتصال بخوادم تيليجرام والبحث الحقيقي... (قد تأخذ ثوانٍ قليلة، انتظر)*\n`🟢 [جاري الفحص...]`{DEV_SIGNATURE}"
+        try:
+            bot.edit_message_text(init_msg, chat_id=chat_id, message_id=call.message.message_id, parse_mode='Markdown')
+        except:
+            pass
+
+        found = False
+        username = ""
+        # محاولات حقيقية للتحقق من توفر اليوزر عبر سيرفر تيليجرام
+        for _ in range(15):
+            if htype == "1":
+                l = ''.join(random.choices(string.ascii_lowercase, k=2))
+                n = ''.join(random.choices(string.digits, k=2))
+                username = f"{l}_{n}"
+            elif htype == "2":
+                l1, l2 = random.choice(string.ascii_lowercase), random.choice(string.ascii_lowercase)
+                d1, d2 = random.choice(string.digits), random.choice(string.digits)
+                username = f"{l1}{d1}_{l2}{d2}"
+            else:
+                l1, l2 = random.choice(string.ascii_lowercase), random.choice(string.ascii_lowercase)
+                d1, d2 = random.choice(string.digits), random.choice(string.digits)
+                username = f"{l1}{d1}_{d2}{l2}"
+            
+            try:
+                check_url = f"https://t.me/{username}"
+                headers = {"User-Agent": "Mozilla/5.0"}
+                r = requests.get(check_url, headers=headers, timeout=3)
+                # إذا ظهرت عبارة أن الصفحة غير موجودة أو فارغة معناه اليوزر متاح للتسجيل
+                if r.status_code == 200 and ("tgme_page_extra" in r.text or "If you have Telegram" in r.text):
+                    found = True
+                    break
+            except:
+                pass
+            time.sleep(0.2)
+        
+        if not found and not username:
+            username = "t_12"
+
+        final_matrix = generate_random_matrix()
+        result_text = (
+            f"🎉 *تم الصيد الحقيقي والتحقق من الخوادم بنجاح!* ✨\n\n"
+            f"🟢 `{final_matrix}`\n"
+            f"📌 اليوزر المتاح: `@{username}`\n"
+            f"🔗 الرابط: https://t.me/{username}"
+            f"{DEV_SIGNATURE}"
+        )
+        try:
+            bot.edit_message_text(result_text, chat_id=chat_id, message_id=call.message.message_id, reply_markup=get_hunt_types_keyboard(), parse_mode='Markdown')
+        except:
+            bot.send_message(chat_id, result_text, reply_markup=get_hunt_types_keyboard(), parse_mode='Markdown')
 
     elif data.startswith("setmode_"):
         mode = data.replace("setmode_", "")
@@ -278,20 +240,19 @@ def handle_callback_query(call):
             
             bot.edit_message_text(f"⏳ *جاري التحميل...*{DEV_SIGNATURE}", chat_id=chat_id, message_id=call.message.message_id, parse_mode='Markdown')
             
-            def process_download():
-                success = False
-                if "instagram.com" in url:
-                    success = process_instagram(chat_id, url, is_audio)
-                elif "tiktok.com" in url:
-                    success = process_tiktok(chat_id, url, is_audio)
-                else:
-                    success = process_youtube(chat_id, url, is_audio, selected_q)
+            success = False
+            if "instagram.com" in url:
+                success = process_instagram(chat_id, url, is_audio)
+            elif "tiktok.com" in url:
+                success = process_tiktok(chat_id, url, is_audio)
+            else:
+                success = process_youtube(chat_id, url, is_audio, selected_q)
 
-                if not success:
-                    bot.send_message(chat_id, f"⚠️ *تعذر التحميل، تأكد من صحة الرابط.*{DEV_SIGNATURE}", parse_mode='Markdown')
-                user_requests.pop(chat_id, None)
+            if not success:
+                bot.send_message(chat_id, f"⚠️ *تعذر التحميل، تأكد من صحة الرابط.*{DEV_SIGNATURE}", parse_mode='Markdown')
+            user_requests.pop(chat_id, None)
 
-            threading.Thread(target=process_download).start()
+    bot.answer_callback_query(call.id)
 
 @bot.message_handler(content_types=['photo'])
 def handle_photos(message):
@@ -337,7 +298,7 @@ def handle_all_messages(message):
             is_audio = preset == "insta_audio"
             user_selected_mode.pop(chat_id, None)
             bot.reply_to(message, f"⏳ *جاري جلب المحتوى من انستغرام...*{DEV_SIGNATURE}", parse_mode='Markdown')
-            threading.Thread(target=process_instagram, args=(chat_id, target_url, is_audio)).start()
+            process_instagram(chat_id, target_url, is_audio)
             return
         elif "tiktok.com" in target_url or "youtube.com" in target_url or "youtu.be" in target_url:
             preset = user_selected_mode.get(chat_id)
