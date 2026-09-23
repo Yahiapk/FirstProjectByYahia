@@ -153,37 +153,10 @@ async def hunt_username_task(context: ContextTypes.DEFAULT_TYPE, chat_id: int, m
     except:
         await context.bot.send_message(chat_id, result_text, reply_markup=get_hunt_types_keyboard(), parse_mode='Markdown')
 
-# دالة تنزيل متطورة تعتمد على Cobalt API لتجاوز حظر يوتيوب بالسيرفرات
+# دالة التنزيل باستخدام الكوكيز
 def download_media_direct(url, is_audio, quality="best"):
     filename = f"dl_{int(time.time())}_{random.randint(1000,9999)}"
     
-    if "youtube.com" in url or "youtu.be" in url:
-        try:
-            cobalt_url = "https://api.cobalt.tools/api/json"
-            headers = {
-                "Accept": "application/json",
-                "Content-Type": "application/json"
-            }
-            payload = {
-                "url": url,
-                "isAudioOnly": is_audio,
-                "aFormat": "mp3" if is_audio else "best",
-                "vQuality": "720" if quality in ["360", "720"] else "1080"
-            }
-            res = requests.post(cobalt_url, json=payload, headers=headers, timeout=15)
-            data = res.json()
-            
-            if "url" in data:
-                media_res = requests.get(data["url"], stream=True, timeout=60)
-                ext = "mp3" if is_audio else "mp4"
-                file_path = f"{filename}.{ext}"
-                with open(file_path, 'wb') as f:
-                    for chunk in media_res.iter_content(chunk_size=8192):
-                        f.write(chunk)
-                return file_path
-        except Exception as err:
-            print(f"Cobalt API Error: {err}")
-
     ydl_opts = {
         'outtmpl': f'{filename}.%(ext)s',
         'quiet': True,
@@ -192,11 +165,22 @@ def download_media_direct(url, is_audio, quality="best"):
         'geo_bypass': True,
         'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
     }
-    
+
+    # التحقق من وجود ملف الكوكيز واستخدامه تلقائياً
+    if os.path.exists("cookies.txt"):
+        ydl_opts['cookiefile'] = "cookies.txt"
+
     if is_audio:
         ydl_opts['format'] = 'bestaudio/best'
     else:
-        ydl_opts['format'] = 'b/best'
+        if quality == "360":
+            ydl_opts['format'] = 'b[height<=360]/b/best[height<=360]'
+        elif quality == "720":
+            ydl_opts['format'] = 'b[height<=720]/b/best[height<=720]'
+        elif quality == "1080":
+            ydl_opts['format'] = 'b[height<=1080]/b/best[height<=1080]'
+        else:
+            ydl_opts['format'] = 'b/best'
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=True)
