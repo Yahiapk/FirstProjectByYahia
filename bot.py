@@ -7,6 +7,7 @@ import asyncio
 import requests
 from PIL import Image
 from io import BytesIO
+import yt_dlp
 
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
@@ -43,7 +44,7 @@ def get_features_keyboard():
 def get_video_quality_keyboard():
     keyboard = [
         [InlineKeyboardButton("📱 360p", callback_data="q_360"), InlineKeyboardButton("📺 720p HD", callback_data="q_720")],
-        [InlineKeyboardButton("🖥 1080p Full HD", callback_data="q_1080"), InlineKeyboardButton("🌟 4K / Max", callback_data="q_max")]
+        [InlineKeyboardButton("🖥 1080p Full HD", callback_data="q_1080"), InlineKeyboardButton("🌟 Max", callback_data="q_max")]
     ]
     return InlineKeyboardMarkup(keyboard)
 
@@ -150,50 +151,41 @@ async def hunt_username_task(context: ContextTypes.DEFAULT_TYPE, chat_id: int, m
     except:
         await context.bot.send_message(chat_id, result_text, reply_markup=get_hunt_types_keyboard(), parse_mode='Markdown')
 
-async def process_tiktok(context: ContextTypes.DEFAULT_TYPE, chat_id: int, url: str, is_audio: bool):
-    try:
-        api_url = f"https://www.tikwm.com/api/?url={url}&hd=1"
-        res = requests.get(api_url, timeout=15).json()
-        if res.get("code") == 0:
-            data = res.get("data", {})
-            if is_audio:
-                await context.bot.send_audio(chat_id, data.get("music"), caption=f"🎶 *تيك توك | تم تحميل الصوت بنجاح*{DEV_SIGNATURE}", parse_mode='Markdown')
-                return True
-            else:
-                await context.bot.send_video(chat_id, data.get("hdplay") or data.get("play"), caption=f"🎬 *تيك توك | تم تحميل الفيديو بنجاح*{DEV_SIGNATURE}", parse_mode='Markdown')
-                return True
-    except:
-        pass
-    return False
+# التحميل المباشر عن طريق yt-dlp بدون أي وسيط
+def download_media_direct(url, is_audio):
+    filename = f"dl_{int(time.time())}_{random.randint(1000,9999)}"
+    ydl_opts = {
+        'outtmpl': f'{filename}.%(ext)s',
+        'quiet': True,
+        'no_warnings': True,
+    }
+    if is_audio:
+        ydl_opts['format'] = 'bestaudio/best'
+    else:
+        ydl_opts['format'] = 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best'
 
-async def process_instagram(context: ContextTypes.DEFAULT_TYPE, chat_id: int, url: str, is_audio: bool):
-    try:
-        # سيرفر خالي تماماً من أي إشتركات أو شروط خارجية
-        api_url = f"https://api.vkrdown.com/v1/insta?url={url}"
-        res = requests.get(api_url, timeout=15).json()
-        dl_url = res.get("data", {}).get("url") or res.get("url")
-        if dl_url:
-            if is_audio:
-                await context.bot.send_audio(chat_id, dl_url, caption=f"🎵 *انستغرام | تم تحميل الصوت بنجاح*{DEV_SIGNATURE}", parse_mode='Markdown')
-            else:
-                await context.bot.send_video(chat_id, dl_url, caption=f"📸 *انستغرام | تم تحميل الفيديو بنجاح*{DEV_SIGNATURE}", parse_mode='Markdown')
-            return True
-    except:
-        pass
-    return False
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(url, download=True)
+        filename_actual = ydl.prepare_filename(info)
+        return filename_actual
 
-async def process_youtube(context: ContextTypes.DEFAULT_TYPE, chat_id: int, url: str, is_audio: bool, quality: str):
+async def process_media_download(context: ContextTypes.DEFAULT_TYPE, chat_id: int, url: str, is_audio: bool):
     try:
-        api_url = f"https://api.vkrdown.com/v1/youtube?url={url}"
-        res = requests.get(api_url, timeout=15).json()
-        dl_url = res.get("data", {}).get("url") or res.get("url")
-        if dl_url:
-            if is_audio:
-                await context.bot.send_audio(chat_id, dl_url, caption=f"🎵 *يوتيوب | تم تحميل الصوت بنجاح*{DEV_SIGNATURE}", parse_mode='Markdown')
-            else:
-                await context.bot.send_video(chat_id, dl_url, caption=f"🎬 *يوتيوب | تم تحميل الفيديو بنجاح*{DEV_SIGNATURE}", parse_mode='Markdown')
+        file_path = await asyncio.to_thread(download_media_direct, url, is_audio)
+        if file_path and os.path.exists(file_path):
+            with open(file_path, 'rb') as media_file:
+                if is_audio:
+                    await context.bot.send_audio(chat_id, media_file, caption=f"🎵 *تم تحميل الصوت بنجاح*{DEV_SIGNATURE}", parse_mode='Markdown')
+                else:
+                    await context.bot.send_video(chat_id, media_file, caption=f"🎬 *تم تحميل الفيديو بنجاح*{DEV_SIGNATURE}", parse_mode='Markdown')
+            
+            # تنظيف الملفات المؤقتة بعد الإرسال
+            try:
+                os.remove(file_path)
+            except:
+                pass
             return True
-    except:
+    except Exception as e:
         pass
     return False
 
@@ -222,7 +214,6 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    # الإجابة اللحظية المباشرة التي تلغي علامة التحميل بالكامل
     await query.answer()
 
     chat_id = query.message.chat_id
@@ -247,18 +238,9 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
         req = user_requests.get(chat_id)
         if req:
             url, is_audio = req.get("url"), req.get("is_audio", False)
-            q_map = {"q_360": "360", "q_720": "720", "q_1080": "1080", "q_max": "max", "q_audio_128": "128", "q_audio_320": "320"}
-            selected_q = q_map.get(data, "max")
+            await context.bot.edit_message_text(f"⏳ *جاري التحميل المباشر والسريع...*{DEV_SIGNATURE}", chat_id=chat_id, message_id=query.message.message_id, parse_mode='Markdown')
 
-            await context.bot.edit_message_text(f"⏳ *جاري التحميل ومعالجة الرابط...*{DEV_SIGNATURE}", chat_id=chat_id, message_id=query.message.message_id, parse_mode='Markdown')
-
-            success = False
-            if "instagram.com" in url:
-                success = await process_instagram(context, chat_id, url, is_audio)
-            elif "tiktok.com" in url:
-                success = await process_tiktok(context, chat_id, url, is_audio)
-            else:
-                success = await process_youtube(context, chat_id, url, is_audio, selected_q)
+            success = await process_media_download(context, chat_id, url, is_audio)
 
             if not success:
                 await context.bot.send_message(chat_id, f"⚠️ *تعذر التحميل، تأكد من صحة الرابط.*{DEV_SIGNATURE}", parse_mode='Markdown')
@@ -280,7 +262,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         return
     elif text == "🎨 تحويل الصورة إلى رسم بالنقاط":
         user_state[chat_id] = "ascii"
-        await update.message.reply_text(f"🎨 *أرسل أي صورة الآن لتحويلها إلى رسم فني بالنقاط:*{DEV_SIGNATURE}", reply_markup=get_main_menu(), parse_mode='Markdown')
+        await update.message.reply_text(f"🎨 *أرسل أي صورة الآن لتحويلها إلى رسم فني بالنقاط:*{DEV_SIGNATURE}", parse_mode='Markdown')
         return
 
     if user_state.get(chat_id) == "waiting_name":
@@ -288,7 +270,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         name = text
         decorations = [
             f"⚡ ⦗ {name} ⦗ ⚡{DEV_SIGNATURE}\n-------------------",
-            f"💎 »» {name} «« 💎{DEV_SIGNATURE}\n-------------------",
+            f"💎 »» {name} »« 💎{DEV_SIGNATURE}\n-------------------",
             f"🔥 ⦇ 𝄠 {name} 𝄠 ⦆ 🔥{DEV_SIGNATURE}\n-------------------",
             f"🌟 ༺ {name} ༻ 🌟{DEV_SIGNATURE}\n-------------------",
             f"🦅 ⫷ {name} ⫸ 🦅{DEV_SIGNATURE}\n-------------------",
@@ -301,27 +283,19 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
     urls = re.findall(r'https?://[^\s]+', text)
     if urls:
         target_url = urls[0]
-        if "instagram.com" in target_url:
-            preset = user_selected_mode.get(chat_id)
-            is_audio = preset == "insta_audio"
+        preset = user_selected_mode.get(chat_id)
+        if preset:
+            is_audio = "audio" in preset
+            user_requests[chat_id] = {"url": target_url, "is_audio": is_audio}
             user_selected_mode.pop(chat_id, None)
-            await update.message.reply_text(f"⏳ *جاري جلب المحتوى من انستغرام...*{DEV_SIGNATURE}", parse_mode='Markdown')
-            asyncio.create_task(process_instagram(context, chat_id, target_url, is_audio))
-            return
-        elif "tiktok.com" in target_url or "youtube.com" in target_url or "youtu.be" in target_url:
-            preset = user_selected_mode.get(chat_id)
-            if preset:
-                is_audio = "audio" in preset
-                user_requests[chat_id] = {"url": target_url, "is_audio": is_audio}
-                user_selected_mode.pop(chat_id, None)
-                if is_audio:
-                    await update.message.reply_text(f"🎵 *اختر جودة الصوت:*{DEV_SIGNATURE}", reply_markup=get_audio_quality_keyboard(), parse_mode='Markdown')
-                else:
-                    await update.message.reply_text(f"🎬 *اختر دقة الفيديو:*{DEV_SIGNATURE}", reply_markup=get_video_quality_keyboard(), parse_mode='Markdown')
+            if is_audio:
+                await update.message.reply_text(f"🎵 *اختر جودة الصوت:*{DEV_SIGNATURE}", reply_markup=get_audio_quality_keyboard(), parse_mode='Markdown')
             else:
-                user_requests[chat_id] = {"url": target_url, "is_audio": False}
-                await update.message.reply_text(f"📥 *اختر نوع التحميل:*{DEV_SIGNATURE}", reply_markup=get_media_type_keyboard(), parse_mode='Markdown')
-            return
+                await update.message.reply_text(f"🎬 *اختر دقة الفيديو:*{DEV_SIGNATURE}", reply_markup=get_video_quality_keyboard(), parse_mode='Markdown')
+        else:
+            user_requests[chat_id] = {"url": target_url, "is_audio": False}
+            await update.message.reply_text(f"📥 *اختر نوع التحميل:*{DEV_SIGNATURE}", reply_markup=get_media_type_keyboard(), parse_mode='Markdown')
+        return
 
     await update.message.reply_text(f"يرجى استخدام الأزرار بالأسفل لتنفيذ الخدمات المتاحة 🚀{DEV_SIGNATURE}", parse_mode='Markdown')
 
@@ -345,5 +319,5 @@ if __name__ == '__main__':
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo_messages))
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_text_messages))
 
-    print("Bot is running smoothly...")
+    print("Bot running direct extraction...")
     app.run_polling()
