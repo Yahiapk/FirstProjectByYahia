@@ -28,7 +28,7 @@ DEV_SIGNATURE = "💻 Dev: YahiaFadhel"
 
 def get_main_menu():
     keyboard = [
-        [KeyboardButton("📥 تنزيل الفيديوهات والصوتيات (يوتيوب، تيكتوك، بينترست)")],
+        [KeyboardButton("📥 تنزيل الفيديوهات والصوتيات (يوتيوب، تيكتوك، انستا، بينترست)")],
         [KeyboardButton("🎵 معرفة اسم الأغنية (من البصمة/الصوت)")],
         [KeyboardButton("🖼 إزالة خلفية الصورة (تفريغ)")],
         [KeyboardButton("⏰ مواقيت الصلاة والأذكار (جعفري)")],
@@ -42,8 +42,10 @@ def get_main_menu():
 def get_features_keyboard():
     keyboard = [
         [InlineKeyboardButton("🎬 تنزيل فيديو تيك توك", callback_data="setmode_tt_video")],
+        [InlineKeyboardButton("🎶 تنزيل أغنية تيك توك", callback_data="setmode_tt_audio")],
         [InlineKeyboardButton("📹 تنزيل فيديو يوتيوب", callback_data="setmode_yt_video")],
         [InlineKeyboardButton("🎵 تنزيل أغنية يوتيوب", callback_data="setmode_yt_audio")],
+        [InlineKeyboardButton("📸 تنزيل فيديو/صورة انستغرام", callback_data="setmode_insta_video")],
         [InlineKeyboardButton("📌 تنزيل فيديو بينترست", callback_data="setmode_pin")]
     ]
     return InlineKeyboardMarkup(keyboard)
@@ -470,7 +472,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
     text = update.message.text or ""
 
     if text.startswith("📥 تنزيل الفيديوهات والصوتيات"):
-        await update.message.reply_text(f"📥 *أرسل رابط تيك توك، يوتيوب، أو بينترست مباشرة:*\n\n{DEV_SIGNATURE}", reply_markup=get_features_keyboard(), parse_mode='Markdown')
+        await update.message.reply_text(f"📥 *أرسل رابط تيك توك، يوتيوب، انستغرام، أو بينترست مباشرة:*\n\n{DEV_SIGNATURE}", reply_markup=get_features_keyboard(), parse_mode='Markdown')
         return
     elif text == "🔍 صيد يوزرات تيليجرام الحقيقي (صاروخي)":
         await update.message.reply_text(f"🔍 *اختر صيغة الصيد المطلوبة:*\n\n{DEV_SIGNATURE}", reply_markup=get_hunt_types_keyboard(), parse_mode='Markdown')
