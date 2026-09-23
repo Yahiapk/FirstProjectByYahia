@@ -13,6 +13,7 @@ from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeybo
 TELEGRAM_TOKEN = "8708302621:AAFAKBSzXgbq7p5fMimAIJuqqVEcIivTFmw"
 ADMIN_ID = 1283009799
 
+# تفعيل الـ Threaded بالبوت
 bot = telebot.TeleBot(TELEGRAM_TOKEN, threaded=True)
 BOT_ID = int(TELEGRAM_TOKEN.split(':')[0])
 
@@ -95,16 +96,14 @@ def generate_target_username(htype):
         return f"{c1}{c2}_{d1}{d2}"
 
 def check_telegram_username_real(username):
-    """فحص حقيقي ومباشر عبر خوادم تيليجرام الرسمية"""
     try:
         url = f"https://t.me/{username}"
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         }
-        res = requests.get(url, headers=headers, timeout=2.5)
+        res = requests.get(url, headers=headers, timeout=2.0)
         if res.status_code == 200:
             text = res.text
-            # إذا لم تحتوي الصفحة على محتوى القناة أو زر المراسلة، يعني اليوزر متاح للحقوق والحجز
             if "tgme_page_extra" not in text and "Preview channel" not in text and "Send Message" not in text:
                 return True
     except:
@@ -112,7 +111,6 @@ def check_telegram_username_real(username):
     return False
 
 def hunt_username_thread(chat_id, message_id, htype):
-    """عملية الصيد السريعة في خلفية النظام لمنع بطء الأزرار"""
     found_username = None
     attempts = 0
     start_time = time.time()
@@ -121,14 +119,14 @@ def hunt_username_thread(chat_id, message_id, htype):
         attempts += 1
         test_user = generate_target_username(htype)
         
-        # التحديث البصري الخفيف كل بضع محاولات لضمان السرعة العالية وعدم إجهاد الـ API
-        if attempts % 3 == 0 or attempts == 1:
+        # تحديث النص للمستخدم كل 4 محاولات لضمان عدم حصول Rate Limit من التيليجرام
+        if attempts % 4 == 0 or attempts == 1:
             matrix_code = generate_random_matrix()
             anim_text = (
-                f"⚡ *جاري الصيد السريع والتحقق الحقيقي...*\n\n"
+                f"⚡ *جاري الصيد والتحقق الحقيقي...*\n\n"
                 f"🟢 `{matrix_code}`\n"
-                f"🔍 اليوزر المفحوص: `@{test_user}`\n"
-                f"📊 عدد المحاولات: `{attempts}`"
+                f"🔍 فحص اليوزر: `@{test_user}`\n"
+                f"📊 المحاولات: `{attempts}`"
                 f"{DEV_SIGNATURE}"
             )
             try:
@@ -136,10 +134,11 @@ def hunt_username_thread(chat_id, message_id, htype):
             except:
                 pass
 
-        # الفحص المباشر في تيليجرام
         if check_telegram_username_real(test_user):
             found_username = test_user
             break
+            
+        time.sleep(0.05) # حماية من الحظر وضمان السرعة العالية
 
     elapsed_time = round(time.time() - start_time, 2)
     final_matrix = generate_random_matrix()
@@ -148,7 +147,7 @@ def hunt_username_thread(chat_id, message_id, htype):
         f"🟢 `{final_matrix}`\n"
         f"📌 اليوزر المتاح: `@{found_username}`\n"
         f"⏱ المستغرق: `{elapsed_time}` ثانية\n"
-        f"📊 إجمالي المحاولات: `{attempts}`\n"
+        f"📊 المحاولات: `{attempts}`\n"
         f"🔗 الرابط المباشر: https://t.me/{found_username}"
         f"{DEV_SIGNATURE}"
     )
@@ -247,18 +246,18 @@ def menu_ascii(message):
 
 @bot.callback_query_handler(func=lambda call: True)
 def handle_callback_query(call):
+    # إجابة فورية للأزرار لإلغاء دائرة التحميل الـ Loading في التيليجرام فوراً
+    try:
+        bot.answer_callback_query(call.id)
+    except:
+        pass
+
     chat_id = call.message.chat.id
     data = call.data
 
-    # الاستجابة الفورية للزر لإنهاء علامة الـ Loading بالتيليجرام فوراً
-    bot.answer_callback_query(call.id, text="⚡ جاري معالجة طلبك فوراً...")
-
     if data.startswith("hunt_type_"):
         htype = data.split("_")[-1]
-        
-        # تشغيل عملية الصيد الفوري في Background Thread مستقل لسرعة الاستجابة
-        t = threading.Thread(target=hunt_username_thread, args=(chat_id, call.message.message_id, htype))
-        t.start()
+        threading.Thread(target=hunt_username_thread, args=(chat_id, call.message.message_id, htype)).start()
 
     elif data.startswith("setmode_"):
         mode = data.replace("setmode_", "")
