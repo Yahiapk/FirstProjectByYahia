@@ -124,7 +124,7 @@ def generate_target_username(htype):
     elif htype == "4": return f"{x1}{x2}{d1}{d2}{x3}"
     elif htype == "5": return f"{x1}_{d1}{x2}{d2}"
     elif htype == "6": return f"{x1}_{x2}{d1}{d2}"
-    elif htype == "7": return f"{x1}{x2}{x3}{x4}"
+    elif htype == "7": return f"{x1}_{x2}{x3}{x4}"
     return f"{x1}{d1}_{d2}{x2}"
 
 def check_telegram_username_real(username):
@@ -258,23 +258,39 @@ def download_youtube_rapidapi(url, is_audio):
         print(f"API Download Error: {e}")
     return None
 
+# دالة مخصصة لسحب فيديوهات بينترست بطريقة مشابهة ليوتيوب عبر الـ API المباشر
+def download_pinterest_api(url):
+    filename = f"dl_{int(time.time())}_{random.randint(1000,9999)}.mp4"
+    try:
+        api_url = f"https://pinterest-video-downloader.p.rapidapi.com/download?url={url}"
+        # سنستخدم محرك سحب مباشر وسريع عبر API عام مجاني لجلب رابط الفيديو الصافي
+        res = requests.get(f"https://api.nekobot.cc/api/imagegen?type=pinterest&url={url}", timeout=10)
+        # إذا اعتمدنا على الـ API المجاني العام المخصص للينكس
+        r = requests.get(f"https://pinvids.Vip/api/download?url={url}", headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
+        if r.status_code == 200:
+            data = r.json()
+            video_url = data.get("video_url") or data.get("url")
+            if video_url:
+                vid_data = requests.get(video_url, stream=True, timeout=30)
+                if vid_data.status_code == 200:
+                    with open(filename, 'wb') as f:
+                        for chunk in vid_data.iter_content(chunk_size=32768):
+                            f.write(chunk)
+                    return filename
+    except Exception as e:
+        print(f"Pinterest API Error: {e}")
+    return None
+
 def download_media_direct(url, is_audio, quality="best"):
     if "youtube.com" in url or "youtu.be" in url:
         yt_file = download_youtube_rapidapi(url, is_audio)
         if yt_file and os.path.exists(yt_file): 
             return yt_file
 
-    target_url = url
     if "pin.it" in url or "pinterest.com" in url:
-        try:
-            headers = {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-                "Accept-Language": "en-US,en;q=0.9"
-            }
-            res = requests.get(url, headers=headers, allow_redirects=True, timeout=10)
-            target_url = res.url
-        except Exception as e:
-            print(f"Pinterest redirect error: {e}")
+        pin_file = download_pinterest_api(url)
+        if pin_file and os.path.exists(pin_file):
+            return pin_file
 
     filename = f"dl_{int(time.time())}_{random.randint(1000,9999)}"
     ydl_opts = {
@@ -294,7 +310,7 @@ def download_media_direct(url, is_audio, quality="best"):
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(target_url, download=True)
+            info = ydl.extract_info(url, download=True)
             if 'entries' in info and len(info['entries']) > 0: 
                 info = info['entries'][0]
             filename_actual = ydl.prepare_filename(info)
