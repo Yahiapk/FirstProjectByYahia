@@ -46,7 +46,7 @@ def get_features_keyboard():
         [InlineKeyboardButton("📹 تنزيل فيديو يوتيوب", callback_data="setmode_yt_video")],
         [InlineKeyboardButton("🎵 تنزيل أغنية يوتيوب", callback_data="setmode_yt_audio")],
         [InlineKeyboardButton("📸 تنزيل فيديو/صورة انستغرام", callback_data="setmode_insta_video")],
-        [InlineKeyboardButton("📌 تنزيل صور/فيديو بينترست", callback_data="setmode_pin")]
+        [InlineKeyboardButton("📌 تنزيل فيديو بينترست", callback_data="setmode_pin")]
     ]
     return InlineKeyboardMarkup(keyboard)
 
@@ -124,7 +124,7 @@ def generate_target_username(htype):
     elif htype == "4": return f"{x1}{x2}{d1}{d2}{x3}"
     elif htype == "5": return f"{x1}_{d1}{x2}{d2}"
     elif htype == "6": return f"{x1}_{x2}{d1}{d2}"
-    elif htype == "7": return f"{x1}_{x2}{x3}{x4}"
+    elif htype == "7": return f"{x1}{x2}{x3}{x4}"
     return f"{x1}{d1}_{d2}{x2}"
 
 def check_telegram_username_real(username):
@@ -267,7 +267,11 @@ def download_media_direct(url, is_audio, quality="best"):
     target_url = url
     if "pin.it" in url or "pinterest.com" in url:
         try:
-            res = requests.get(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}, allow_redirects=True, timeout=10)
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+                "Accept-Language": "en-US,en;q=0.9"
+            }
+            res = requests.get(url, headers=headers, allow_redirects=True, timeout=10)
             target_url = res.url
         except Exception as e:
             print(f"Pinterest redirect error: {e}")
@@ -298,7 +302,7 @@ def download_media_direct(url, is_audio, quality="best"):
                 return filename_actual
 
             base = os.path.splitext(filename_actual)[0]
-            for ext in ['.mp4', '.mkv', '.webm', '.mp3', '.m4a', '.jpg', '.png', '.webp']:
+            for ext in ['.mp4', '.mkv', '.webm', '.mp3', '.m4a']:
                 if os.path.exists(base + ext): 
                     return base + ext
     except Exception as e:
@@ -311,9 +315,7 @@ async def process_media_download(context: ContextTypes.DEFAULT_TYPE, chat_id: in
         if file_path and os.path.exists(file_path):
             ext = os.path.splitext(file_path)[1].lower()
             with open(file_path, 'rb') as media_file:
-                if ext in ['.jpg', '.jpeg', '.png', '.webp']:
-                    await context.bot.send_photo(chat_id, media_file, caption=f"📌 *تم تنزيل الصورة بنجاح*\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
-                elif is_audio or ext in ['.mp3', '.m4a', '.wav', '.ogg']:
+                if is_audio or ext in ['.mp3', '.m4a', '.wav', '.ogg']:
                     await context.bot.send_audio(chat_id, media_file, caption=f"🎵 *تم تحميل الصوت بنجاح*\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
                 else:
                     await context.bot.send_video(chat_id, media_file, caption=f"🎬 *تم تحميل الفيديو بنجاح*\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
@@ -409,7 +411,7 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
         await context.bot.edit_message_text(f"🎬 *اختر دقة الفيديو المطلوب:*\n\n{DEV_SIGNATURE}", chat_id=chat_id, message_id=query.message.message_id, reply_markup=get_video_quality_keyboard(), parse_mode='Markdown')
 
     elif data == "type_audio":
-        await context.bot.edit_message_text(f"🎵 *اختر جودة الصوت المطلوب:*\n\n{DEV_SIGNATURE}", chat_id=chat_id, message_id=query.message.message_id, parse_mode='Markdown')
+        await context.bot.edit_message_text(f"🎵 *اختر جودة الصوت المطلوب:*\n\n{DEV_SIGNATURE}", chat_id=chat_id, message_id=query.message.message_id, reply_markup=get_audio_quality_keyboard(), parse_mode='Markdown')
 
     elif data.startswith("q_"):
         req = user_requests.get(chat_id)
