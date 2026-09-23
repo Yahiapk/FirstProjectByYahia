@@ -261,7 +261,16 @@ def download_youtube_rapidapi(url, is_audio):
 def download_media_direct(url, is_audio, quality="best"):
     if "youtube.com" in url or "youtu.be" in url:
         yt_file = download_youtube_rapidapi(url, is_audio)
-        if yt_file and os.path.exists(yt_file): return yt_file
+        if yt_file and os.path.exists(yt_file): 
+            return yt_file
+
+    target_url = url
+    if "pin.it" in url or "pinterest.com" in url:
+        try:
+            res = requests.get(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}, allow_redirects=True, timeout=10)
+            target_url = res.url
+        except Exception as e:
+            print(f"Pinterest redirect error: {e}")
 
     filename = f"dl_{int(time.time())}_{random.randint(1000,9999)}"
     ydl_opts = {
@@ -270,25 +279,28 @@ def download_media_direct(url, is_audio, quality="best"):
         'no_warnings': True,
         'nocheckcertificate': True,
         'geo_bypass': True,
-        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
     }
 
     if is_audio:
         ydl_opts['format'] = 'bestaudio/best'
         ydl_opts['postprocessors'] = [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3', 'preferredquality': '192'}]
     else:
-        ydl_opts['format'] = 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best'
+        ydl_opts['format'] = 'bestvideo+bestaudio/best'
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            if 'entries' in info and len(info['entries']) > 0: info = info['entries'][0]
+            info = ydl.extract_info(target_url, download=True)
+            if 'entries' in info and len(info['entries']) > 0: 
+                info = info['entries'][0]
             filename_actual = ydl.prepare_filename(info)
-            if os.path.exists(filename_actual): return filename_actual
+            if os.path.exists(filename_actual): 
+                return filename_actual
 
             base = os.path.splitext(filename_actual)[0]
             for ext in ['.mp4', '.mkv', '.webm', '.mp3', '.m4a', '.jpg', '.png', '.webp']:
-                if os.path.exists(base + ext): return base + ext
+                if os.path.exists(base + ext): 
+                    return base + ext
     except Exception as e:
         print(f"yt-dlp error: {e}")
     return None
@@ -527,7 +539,7 @@ async def handle_photo_messages(update: Update, context: ContextTypes.DEFAULT_TY
         if res:
             await update.message.reply_text(f"✨ *النتيجة:*\n\n{res}\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
     except:
-        await update.message.reply_text("⚠️ حدث خطأ بالمعالجة.")
+        await update.message.reply_text(f"⚠️ حدث خطأ بالمعالجة.\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
 
 async def handle_audio_voice_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
