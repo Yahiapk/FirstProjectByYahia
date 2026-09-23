@@ -28,7 +28,7 @@ DEV_SIGNATURE = "💻 Dev: YahiaFadhel"
 
 def get_main_menu():
     keyboard = [
-        [KeyboardButton("📥 تنزيل الفيديوهات والصوتيات (يوتيوب، تيكتوك، انستا، بينترست)")],
+        [KeyboardButton("📥 تنزيل الفيديوهات والصوتيات (يوتيوب، تيكتوك، بينترست)")],
         [KeyboardButton("🎵 معرفة اسم الأغنية (من البصمة/الصوت)")],
         [KeyboardButton("🖼 إزالة خلفية الصورة (تفريغ)")],
         [KeyboardButton("⏰ مواقيت الصلاة والأذكار (جعفري)")],
@@ -42,10 +42,8 @@ def get_main_menu():
 def get_features_keyboard():
     keyboard = [
         [InlineKeyboardButton("🎬 تنزيل فيديو تيك توك", callback_data="setmode_tt_video")],
-        [InlineKeyboardButton("🎶 تنزيل أغنية تيك توك", callback_data="setmode_tt_audio")],
         [InlineKeyboardButton("📹 تنزيل فيديو يوتيوب", callback_data="setmode_yt_video")],
         [InlineKeyboardButton("🎵 تنزيل أغنية يوتيوب", callback_data="setmode_yt_audio")],
-        [InlineKeyboardButton("📸 تنزيل فيديو/صورة انستغرام", callback_data="setmode_insta_video")],
         [InlineKeyboardButton("📌 تنزيل فيديو بينترست", callback_data="setmode_pin")]
     ]
     return InlineKeyboardMarkup(keyboard)
@@ -222,6 +220,42 @@ async def hunt_username_task(context: ContextTypes.DEFAULT_TYPE, chat_id: int, m
 
     await context.bot.send_message(chat_id=chat_id, text=caption_text, reply_markup=get_hunt_types_keyboard(), parse_mode='Markdown')
 
+def download_youtube_rapidapi(url, is_audio):
+    if not RAPIDAPI_KEY: return None
+    filename = f"dl_{int(time.time())}_{random.randint(1000,9999)}"
+    ext = "mp3" if is_audio else "mp4"
+    file_path = f"{filename}.{ext}"
+
+    api_url = "https://youtube-media-downloader.p.rapidapi.com/v2/video/details"
+    headers = {"x-rapidapi-key": RAPIDAPI_KEY, "x-rapidapi-host": "youtube-media-downloader.p.rapidapi.com"}
+    
+    video_id_match = re.search(r'(?:v=|\/|shorts\/)([0-9A-Za-z_-]{11})', url)
+    if not video_id_match: return None
+    video_id = video_id_match.group(1)
+
+    try:
+        res = requests.get(api_url, headers=headers, params={"videoId": video_id}, timeout=10)
+        if res.status_code == 200:
+            data = res.json()
+            download_link = None
+            if is_audio:
+                audios = data.get("audios", {}).get("items", [])
+                if audios: download_link = audios[0].get("url")
+            else:
+                videos = data.get("videos", {}).get("items", [])
+                if videos: download_link = videos[0].get("url")
+
+            if download_link:
+                r = requests.get(download_link, stream=True, timeout=120)
+                if r.status_code == 200:
+                    with open(file_path, 'wb') as f:
+                        for chunk in r.iter_content(chunk_size=32768):
+                            f.write(chunk)
+                    return file_path
+    except Exception as e:
+        print(f"API Download Error: {e}")
+    return None
+
 def download_pinterest_scraping(url):
     filename = f"dl_{int(time.time())}_{random.randint(1000,9999)}.mp4"
     try:
@@ -249,15 +283,17 @@ def download_pinterest_scraping(url):
     return None
 
 def download_media_direct(url, is_audio, quality="best"):
-    # دعم بينترست المباشر
+    if "youtube.com" in url or "youtu.be" in url:
+        yt_file = download_youtube_rapidapi(url, is_audio)
+        if yt_file and os.path.exists(yt_file): 
+            return yt_file
+
     if "pin.it" in url or "pinterest.com" in url:
         pin_file = download_pinterest_scraping(url)
         if pin_file and os.path.exists(pin_file):
             return pin_file
 
     filename = f"dl_{int(time.time())}_{random.randint(1000,9999)}"
-    
-    # إعدادات yt-dlp شاملة ومحدثة لكل المنصات (تيكتوك، إنستا، يوتيوب)
     ydl_opts = {
         'outtmpl': f'{filename}.%(ext)s',
         'quiet': True,
@@ -269,13 +305,9 @@ def download_media_direct(url, is_audio, quality="best"):
 
     if is_audio:
         ydl_opts['format'] = 'bestaudio/best'
-        ydl_opts['postprocessors'] = [{
-            'key': 'FFmpegExtractAudio',
-            'preferredcodec': 'mp3',
-            'preferredquality': '192',
-        }]
+        ydl_opts['postprocessors'] = [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3', 'preferredquality': '192'}]
     else:
-        ydl_opts['format'] = 'bestvideo+bestaudio/best/best'
+        ydl_opts['format'] = 'bestvideo+bestaudio/best'
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -301,9 +333,9 @@ async def process_media_download(context: ContextTypes.DEFAULT_TYPE, chat_id: in
             ext = os.path.splitext(file_path)[1].lower()
             with open(file_path, 'rb') as media_file:
                 if is_audio or ext in ['.mp3', '.m4a', '.wav', '.ogg']:
-                    await context.bot.send_audio(chat_id, media_file, caption=f"🎵 *تم تحميل الصوت والأغنية بنجاح*\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
+                    await context.bot.send_audio(chat_id, media_file, caption=f"🎵 *تم تحميل الصوت بنجاح*\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
                 else:
-                    await context.bot.send_video(chat_id, media_file, caption=f"🎬 *تم تحميل الفيديو والصورة بنجاح*\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
+                    await context.bot.send_video(chat_id, media_file, caption=f"🎬 *تم تحميل الفيديو بنجاح*\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
             try: os.remove(file_path)
             except: pass
             return True
@@ -438,7 +470,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
     text = update.message.text or ""
 
     if text.startswith("📥 تنزيل الفيديوهات والصوتيات"):
-        await update.message.reply_text(f"📥 *أرسل رابط تيك توك، يوتيوب، انستغرام، أو بينترست مباشرة:*\n\n{DEV_SIGNATURE}", reply_markup=get_features_keyboard(), parse_mode='Markdown')
+        await update.message.reply_text(f"📥 *أرسل رابط تيك توك، يوتيوب، أو بينترست مباشرة:*\n\n{DEV_SIGNATURE}", reply_markup=get_features_keyboard(), parse_mode='Markdown')
         return
     elif text == "🔍 صيد يوزرات تيليجرام الحقيقي (صاروخي)":
         await update.message.reply_text(f"🔍 *اختر صيغة الصيد المطلوبة:*\n\n{DEV_SIGNATURE}", reply_markup=get_hunt_types_keyboard(), parse_mode='Markdown')
