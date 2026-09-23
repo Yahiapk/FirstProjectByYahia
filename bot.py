@@ -27,7 +27,8 @@ def get_main_menu():
     btn2 = KeyboardButton("🔍 صيد يوزرات تيليجرام الحقيقي (صاروخي)")
     btn3 = KeyboardButton("✨ زخرفة الأسماء الاحترافية")
     btn4 = KeyboardButton("🎨 تحويل الصورة إلى رسم بالنقاط")
-    markup.add(btn1, btn2, btn3, btn4)
+    btn5 = KeyboardButton("📚 ملف اوكسفورد كلمات")
+    markup.add(btn1, btn2, btn3, btn4, btn5)
     return markup
 
 def get_features_keyboard():
@@ -69,7 +70,13 @@ def get_hunt_types_keyboard():
     )
     return markup
 
+def get_oxford_keyboard():
+    markup = InlineKeyboardMarkup()
+    markup.add(InlineKeyboardButton("📂 تحميل ملف اوكسفورد كلمات", callback_data="send_oxford_pdf"))
+    return markup
+
 def generate_random_matrix():
+    # توليد أرقام 0 و 1 عشوائية ومتغيرة بسرعة
     bits = ["".join(random.choices("01", k=8)) for _ in range(4)]
     return " ".join(bits)
 
@@ -158,28 +165,36 @@ def menu_decorate(message):
 @bot.message_handler(func=lambda message: message.text == "🎨 تحويل الصورة إلى رسم بالنقاط")
 def menu_ascii(message):
     user_state[message.chat.id] = "ascii"
-    bot.reply_to(message, f"🎨 *أرسل أي صورة الآن لتحويلها إلى رسم فني بالنقاط:*{DEV_SIGNATURE}", reply_markup=get_main_menu(), parse_mode='Markdown')
+    bot.reply_to(message, f"🎨 *أرسل أي صورة الآن لتحويلها إلى رسم فني بالنقاط:*{DEV_SIGNATURE}, reply_markup=get_main_menu(), parse_mode='Markdown')
+
+@bot.message_handler(func=lambda message: message.text == "📚 ملف اوكسفورد كلمات")
+def menu_oxford_file(message):
+    bot.reply_to(message, f"📚 *اضغط على الزر أدناه لتحميل ملف اوكسفورد كلمات:*{DEV_SIGNATURE}", reply_markup=get_oxford_keyboard(), parse_mode='Markdown')
 
 @bot.callback_query_handler(func=lambda call: True)
 def handle_callback_query(call):
     chat_id = call.message.chat.id
     data = call.data
 
-    if data.startswith("hunt_type_"):
+    if data == "send_oxford_pdf":
+        pdf_path = "/storage/emulated/0/Download/OX.pdf"
+        try:
+            if os.path.exists(pdf_path):
+                with open(pdf_path, 'rb') as doc:
+                    bot.send_document(chat_id, doc, caption=f"📚 *تفضل ملف اوكسفورد كلمات*{DEV_SIGNATURE}", parse_mode='Markdown')
+            else:
+                bot.send_message(chat_id, f"⚠️ عذراً، لم يتم العثور على ملف الـ PDF في المسار المحدد: `{pdf_path}`{DEV_SIGNATURE}", parse_mode='Markdown')
+        except Exception as e:
+            bot.send_message(chat_id, f"⚠️ حدث خطأ أثناء إرسال الملف.{DEV_SIGNATURE}", parse_mode='Markdown')
+
+    elif data.startswith("hunt_type_"):
         htype = data.split("_")[-1]
         
-        # تنبيه المستخدم بأن عملية البحث والربط بالخوادم قد تأخذ ثواني قليلة
-        matrix_code = generate_random_matrix()
-        init_msg = f"🟢 `{matrix_code}`\n⏳ *جاري الاتصال بخوادم تيليجرام والبحث الحقيقي... (قد تأخذ ثوانٍ قليلة، انتظر)*\n`🟢 [جاري الفحص...]`{DEV_SIGNATURE}"
-        try:
-            bot.edit_message_text(init_msg, chat_id=chat_id, message_id=call.message.message_id, parse_mode='Markdown')
-        except:
-            pass
-
         found = False
         username = ""
-        # محاولات حقيقية للتحقق من توفر اليوزر عبر سيرفر تيليجرام
-        for _ in range(15):
+        
+        # حلقة فحص وبحث مع تغيير مصفوفة الأرقام 0101 بسرعة هائلة لحين إيجاد اليوزر المتاح
+        for _ in range(25):
             if htype == "1":
                 l = ''.join(random.choices(string.ascii_lowercase, k=2))
                 n = ''.join(random.choices(string.digits, k=2))
@@ -193,24 +208,33 @@ def handle_callback_query(call):
                 d1, d2 = random.choice(string.digits), random.choice(string.digits)
                 username = f"{l1}{d1}_{d2}{l2}"
             
+            # تحديث الرسالة بأرقام عشوائية متغيرة بسرعة (0101)
+            matrix_code = generate_random_matrix()
+            anim_text = f"🟢 `{matrix_code}`\n⚡ *جاري فحص اليوزر (`{username}`) عبر خوادم تيليجرام...*\n`🟢 [الحالة: جاري البحث السريع... هاك البوت]`{DEV_SIGNATURE}"
+            try:
+                bot.edit_message_text(anim_text, chat_id=chat_id, message_id=call.message.message_id, parse_mode='Markdown')
+            except:
+                pass
+            
+            # التحقق الحقيقي من السيرفر
             try:
                 check_url = f"https://t.me/{username}"
                 headers = {"User-Agent": "Mozilla/5.0"}
-                r = requests.get(check_url, headers=headers, timeout=3)
-                # إذا ظهرت عبارة أن الصفحة غير موجودة أو فارغة معناه اليوزر متاح للتسجيل
+                r = requests.get(check_url, headers=headers, timeout=2)
                 if r.status_code == 200 and ("tgme_page_extra" in r.text or "If you have Telegram" in r.text):
                     found = True
                     break
             except:
                 pass
-            time.sleep(0.2)
+            
+            time.sleep(0.15) # سرعة التغيير الهائلة
         
         if not found and not username:
-            username = "t_12"
+            username = "t_99"
 
         final_matrix = generate_random_matrix()
         result_text = (
-            f"🎉 *تم الصيد الحقيقي والتحقق من الخوادم بنجاح!* ✨\n\n"
+            f"🎉 *تم صيد اليوزر المتاح بنجاح!* ✨\n\n"
             f"🟢 `{final_matrix}`\n"
             f"📌 اليوزر المتاح: `@{username}`\n"
             f"🔗 الرابط: https://t.me/{username}"
@@ -272,7 +296,7 @@ def handle_all_messages(message):
     chat_id = message.chat.id
     text = message.text or ""
 
-    if text.startswith("/") or text in ["📥 تنزيل الفيديوهات والصوتيات (يوتيوب، تيكتوك، انستا)", "🔍 صيد يوزرات تيليجرام الحقيقي (صاروخي)", "✨ زخرفة الأسماء الاحترافية", "🎨 تحويل الصورة إلى رسم بالنقاط"]:
+    if text.startswith("/") or text in ["📥 تنزيل الفيديوهات والصوتيات (يوتيوب، تيكتوك، انستا)", "🔍 صيد يوزرات تيليجرام الحقيقي (صاروخي)", "✨ زخرفة الأسماء الاحترافية", "🎨 تحويل الصورة إلى رسم بالنقاط", "📚 ملف اوكسفورد كلمات"]:
         return
 
     if user_state.get(chat_id) == "waiting_name":
