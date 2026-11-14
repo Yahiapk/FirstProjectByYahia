@@ -9,7 +9,6 @@ from datetime import datetime
 from PIL import Image
 from io import BytesIO
 import yt_dlp
-from concurrent.futures import ThreadPoolExecutor
 
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
@@ -117,7 +116,7 @@ def format_time_12h(time_str):
         return time_str
 
 # =============================================================================
-# دوال صيد اليوزرات الصاروخية المتزامنة
+# دوال صيد اليوزرات غير المتزامنة (تعمل بالخلفية بدون تجميد البوت)
 # =============================================================================
 def generate_5char_username():
     c1 = random.choice(letters)
@@ -134,42 +133,44 @@ def generate_5char_username():
     ]
     return random.choice(patterns)
 
-def check_telegram_username_real(username):
+def check_single_username(username):
     try:
         headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
         url = f"https://t.me/{username}"
-        res = requests.get(url, headers=headers, timeout=1.5)
+        res = requests.get(url, headers=headers, timeout=1.2)
         if res.status_code == 200:
             text = res.text
             if "tgme_page_extra" not in text and "Preview channel" not in text and "Send Message" not in text and "tgme_page_title" not in text:
                 frag_url = f"https://fragment.com/username/{username}"
-                frag_res = requests.get(frag_url, headers=headers, timeout=1.5)
+                frag_res = requests.get(frag_url, headers=headers, timeout=1.2)
                 if frag_res.status_code == 200:
                     frag_text = frag_res.text
                     if "unavailable" in frag_text.lower() or "not found" in frag_text.lower():
-                        return username
+                        return True
     except:
         pass
-    return None
+    return False
+
+def sync_hunt_worker(count):
+    found_users = []
+    attempts = 0
+    max_attempts = count * 150
+    while len(found_users) < count and attempts < max_attempts:
+        attempts += 1
+        user = generate_5char_username()
+        if user in found_users:
+            continue
+        if check_single_username(user):
+            if user not in found_users:
+                found_users.append(user)
+    return found_users
 
 async def check_real_available_usernames(count):
-    found_users = []
-    with ThreadPoolExecutor(max_workers=30) as executor:
-        while len(found_users) < count:
-            batch_usernames = [generate_5char_username() for _ in range(count * 15)]
-            # إزالة التكرار
-            batch_usernames = list(set(batch_usernames))
-            
-            results = list(executor.map(check_telegram_username_real, batch_usernames))
-            for r in results:
-                if r and r not in found_users and len(found_users) < count:
-                    found_users.append(r)
-            if len(found_users) >= count:
-                break
-    return found_users[:count]
+    # تشغيل البحث في خلفية منفصلة تماماً لكي لا يتوقف البوت
+    return await asyncio.to_thread(sync_hunt_worker, count)
 
 # =============================================================================
-# دوال تحميل الوسائط
+# دوال تحميل الوسائط وباقي الخدمات
 # =============================================================================
 def download_youtube_rapidapi(url, is_audio):
     if not RAPIDAPI_KEY: return None
@@ -376,7 +377,10 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
         found_usernames = await check_real_available_usernames(count)
         
         if found_usernames:
-            await status_msg.delete()
+            try:
+                await status_msg.delete()
+            except:
+                pass
             
             result_text = f"╔══════════════════════════════════════╗\n"
             result_text += f"       🎯 دَفـعـة الـيـوزرات المتاحة\n"
