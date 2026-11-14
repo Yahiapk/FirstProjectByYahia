@@ -4,3 +4,4 @@ pytubefix
 requests
 Pillow
 yt-dlp
+aiohttp
