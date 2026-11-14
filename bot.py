@@ -133,45 +133,40 @@ def generate_5char_username():
     ]
     return random.choice(patterns)
 
+def check_telegram_username_real(username):
+    try:
+        url = f"https://t.me/{username}"
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+        res = requests.get(url, headers=headers, timeout=2)
+        if res.status_code == 200:
+            text = res.text
+            if "tgme_page_extra" not in text and "Preview channel" not in text and "Send Message" not in text and "tgme_page_title" not in text:
+                frag_url = f"https://fragment.com/username/{username}"
+                frag_res = requests.get(frag_url, headers=headers, timeout=2)
+                if frag_res.status_code == 200:
+                    frag_text = frag_res.text
+                    if "unavailable" in frag_text.lower() or "not found" in frag_text.lower():
+                        return True
+    except:
+        pass
+    return False
+
 async def check_real_available_usernames(count):
     found_users = []
-    checked = 0
-    max_attempts = count * 300
+    attempts = 0
+    max_attempts = count * 200
 
-    CONCURRENCY_LIMIT = 80
-    semaphore = asyncio.Semaphore(CONCURRENCY_LIMIT)
-    
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
-    }
-
-    async with aiohttp.ClientSession(headers=headers) as session:
-        async def check_single():
-            nonlocal checked
-            while len(found_users) < count and checked < max_attempts:
-                user = generate_5char_username()
-                if user in found_users:
-                    continue
+    while len(found_users) < count and attempts < max_attempts:
+        attempts += 1
+        user = generate_5char_username()
+        if user in found_users:
+            continue
+        
+        is_free = await asyncio.to_thread(check_telegram_username_real, user)
+        if is_free:
+            if user not in found_users:
+                found_users.append(user)
                 
-                checked += 1
-                async with semaphore:
-                    try:
-                        tg_url = f"https://t.me/{user}"
-                        async with session.get(tg_url, timeout=4) as tg_resp:
-                            tg_text = await tg_resp.text()
-                            if 'tgme_page_title' not in tg_text:
-                                frag_url = f"https://fragment.com/username/{user}"
-                                async with session.get(frag_url, timeout=4) as frag_resp:
-                                    frag_text = await frag_resp.text()
-                                    if "unavailable" in frag_text.lower() or "not found" in frag_text.lower():
-                                        if user not in found_users and len(found_users) < count:
-                                            found_users.append(user)
-                    except:
-                        pass
-
-        workers = [check_single() for _ in range(CONCURRENCY_LIMIT)]
-        await asyncio.gather(*workers)
-
     return found_users
 
 # =============================================================================
@@ -510,7 +505,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
             else:
                 await update.message.reply_text(f"🎬 *اختر دقة الفيديو المطلوب:*\n\n{DEV_SIGNATURE}", reply_markup=get_video_quality_keyboard(), parse_mode='Markdown')
         else:
-            user_requests[chat_id] = {"url": target_url, "is_audio": is_audio if 'is_audio' in locals() else False}
+            user_requests[chat_id] = {"url": target_url, "is_audio": False}
             await update.message.reply_text(f"📥 *اختر نوع التحميل المطلوب:*\n\n{DEV_SIGNATURE}", reply_markup=get_media_type_keyboard(), parse_mode='Markdown')
         return
 
