@@ -24,7 +24,16 @@ user_requests = {}
 user_selected_mode = {}
 user_state = {}
 
+# حقوق المطور
+OWNER = "يـحــيـى"
+TITLE = "Yah2012iaFadhel"
+CHANNEL1 = "@NN_YZ"
+CHANNEL2 = "none"
+TEAM = "Yah2012ia"
 DEV_SIGNATURE = "💻 Dev: YahiaFadhel"
+
+letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+alphanumeric = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
 def get_main_menu():
     keyboard = [
@@ -69,12 +78,10 @@ def get_media_type_keyboard():
     ]
     return InlineKeyboardMarkup(keyboard)
 
-def get_hunt_types_keyboard():
+def get_hunt_count_keyboard():
     keyboard = [
-        [InlineKeyboardButton("🎯 صيغة: x1_1x", callback_data="hunt_type_1"), InlineKeyboardButton("🎯 صيغة: xx_11", callback_data="hunt_type_2")],
-        [InlineKeyboardButton("🎯 صيغة: x1x1x", callback_data="hunt_type_3"), InlineKeyboardButton("🎯 صيغة: xx11x", callback_data="hunt_type_4")],
-        [InlineKeyboardButton("🎯 صيغة: x_1x1", callback_data="hunt_type_5"), InlineKeyboardButton("🎯 صيغة: x_x11", callback_data="hunt_type_6")],
-        [InlineKeyboardButton("🎯 صيغة: x_xxx", callback_data="hunt_type_7")]
+        [InlineKeyboardButton("🔍 سحب 5 يوزرات", callback_data="hunt_count_5"), InlineKeyboardButton("🔍 سحب 10 يوزرات", callback_data="hunt_count_10")],
+        [InlineKeyboardButton("🔍 سحب 50 يوزر", callback_data="hunt_count_50"), InlineKeyboardButton("🔍 سحب 100 يوزر", callback_data="hunt_count_100")]
     ]
     return InlineKeyboardMarkup(keyboard)
 
@@ -108,120 +115,68 @@ def format_time_12h(time_str):
     except:
         return time_str
 
-def generate_random_matrix():
-    bits = ["".join(random.choices("01", k=8)) for _ in range(4)]
-    return " ".join(bits)
-
-def generate_target_username(htype):
-    letters = string.ascii_lowercase
-    digits = string.digits
-    x1, x2, x3, x4 = random.choice(letters), random.choice(letters), random.choice(letters), random.choice(letters)
-    d1, d2 = random.choice(digits), random.choice(digits)
-
-    if htype == "1": return f"{x1}{d1}_{d2}{x2}"
-    elif htype == "2": return f"{x1}{x2}_{d1}{d2}"
-    elif htype == "3": return f"{x1}{d1}{x2}{d2}{x3}"
-    elif htype == "4": return f"{x1}{x2}{d1}{d2}{x3}"
-    elif htype == "5": return f"{x1}_{d1}{x2}{d2}"
-    elif htype == "6": return f"{x1}_{x2}{d1}{d2}"
-    elif htype == "7": return f"{x1}{x2}{x3}{x4}"
-    return f"{x1}{d1}_{d2}{x2}"
-
-def check_telegram_username_real(username):
-    try:
-        url = f"https://t.me/{username}"
-        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
-        res = requests.get(url, headers=headers, timeout=1.5)
-        if res.status_code == 200:
-            text = res.text
-            if "tgme_page_extra" not in text and "Preview channel" not in text and "Send Message" not in text and "tgme_page_title" not in text:
-                return True
-    except:
-        pass
-    return False
-
-def build_sword_with_info(username, attempts, elapsed_time):
-    user_str = f"@{username}".center(22)
-    att_str = f"Attempts: {attempts}".center(22)
-    time_str = f"Time: {elapsed_time}s".center(22)
-    dev_str = f"{DEV_SIGNATURE}".center(22)
-
-    return f"""```
-                  /\\
-                 /  \\
-                / /\\ \\
-               / /  \\ \\
-              / /    \\ \\
-             / /  /\\  \\ \\
-            / /  /    \\  \\ \\
-           / /  /      \\  \\ \\
-          | |  |        |  | |
-          | |  |        |  | |
-          | | [SUCCESS] |  | |
-          | |           |  | |
-          | |{user_str}| |
-          | |           |  | |
-          | |{att_str}| |
-          | |           |  | |
-          | |{time_str}| |
-          | |           |  | |
-          | |{dev_str}| |
-          | |           |  | |
-          | |___________|  | |
-         /                   \\
-        /____   _______   ____\\
-             | |       | |
-             | |       | |
-            [___________]
-                 |   |
-                 |   |
-                (_____)
-```"""
-
-async def hunt_username_task(context: ContextTypes.DEFAULT_TYPE, chat_id: int, message_id: int, htype: str):
-    found_username = None
-    attempts = 0
-    start_time = time.time()
-    last_edit_time = 0
-
-    while True:
-        attempts += 1
-        test_user = generate_target_username(htype)
-        current_time = time.time()
-
-        if current_time - last_edit_time > 1.8:
-            matrix_code = generate_random_matrix()
-            anim_text = (
-                f"⚡ *جاري الصيد السريع والصاروخي...*\n\n"
-                f"🟢 `{matrix_code}`\n"
-                f"🔍 نفحص هسة: `@{test_user}`\n"
-                f"📊 عدد المحاولات: `{attempts}`\n\n"
-                f"━━━━━━━━━━━━━\n{DEV_SIGNATURE}"
-            )
-            try:
-                await context.bot.edit_message_text(anim_text, chat_id=chat_id, message_id=message_id, parse_mode='Markdown')
-                last_edit_time = time.time()
-            except:
-                pass
-
-        is_available = await asyncio.to_thread(check_telegram_username_real, test_user)
-        if is_available:
-            found_username = test_user
-            break
-
-        await asyncio.sleep(0.02)
-
-    elapsed_time = round(time.time() - start_time, 2)
-    sword_final = build_sword_with_info(found_username, attempts, elapsed_time)
+# =============================================================================
+# دوال صيد اليوزرات الحقيقية (كابتال + 4 حروف وشخطة أو 5 حروف ومتاحة 100%)
+# =============================================================================
+def generate_5char_username():
+    c1 = random.choice(letters)
+    c2 = random.choice(alphanumeric)
+    c3 = random.choice(alphanumeric)
+    c4 = random.choice(alphanumeric)
+    c5 = random.choice(alphanumeric)
     
-    caption_text = (
-        f"👑 *تم صيد يوزر متاح بنجاح!*\n"
-        f"🔗 الرابط المباشر: https://t.me/{found_username}\n\n"
-        f"{sword_final}"
-    )
+    patterns = [
+        f"{c1}{c2}_{c3}{c4}",    # XX_XX
+        f"{c1}_{c2}{c3}{c4}",    # X_XXX
+        f"{c1}{c2}{c3}_{c4}",    # XXX_X
+        f"{c1}{c2}{c3}{c4}{c5}"  # XXXXX
+    ]
+    return random.choice(patterns)
 
-    await context.bot.send_message(chat_id=chat_id, text=caption_text, reply_markup=get_hunt_types_keyboard(), parse_mode='Markdown')
+async def check_real_available_usernames(count):
+    found_users = []
+    checked = 0
+    max_attempts = count * 300
 
+    CONCURRENCY_LIMIT = 80
+    semaphore = asyncio.Semaphore(CONCURRENCY_LIMIT)
+    
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+    }
+
+    async with aiohttp.ClientSession(headers=headers) as session:
+        async def check_single():
+            nonlocal checked
+            while len(found_users) < count and checked < max_attempts:
+                user = generate_5char_username()
+                if user in found_users:
+                    continue
+                
+                checked += 1
+                async with semaphore:
+                    try:
+                        tg_url = f"https://t.me/{user}"
+                        async with session.get(tg_url, timeout=4) as tg_resp:
+                            tg_text = await tg_resp.text()
+                            if 'tgme_page_title' not in tg_text:
+                                frag_url = f"https://fragment.com/username/{user}"
+                                async with session.get(frag_url, timeout=4) as frag_resp:
+                                    frag_text = await frag_resp.text()
+                                    if "unavailable" in frag_text.lower() or "not found" in frag_text.lower():
+                                        if user not in found_users and len(found_users) < count:
+                                            found_users.append(user)
+                    except:
+                        pass
+
+        workers = [check_single() for _ in range(CONCURRENCY_LIMIT)]
+        await asyncio.gather(*workers)
+
+    return found_users
+
+# =============================================================================
+# دوال تحميل الوسائط
+# =============================================================================
 def download_youtube_rapidapi(url, is_audio):
     if not RAPIDAPI_KEY: return None
     filename = f"dl_{int(time.time())}_{random.randint(1000,9999)}"
@@ -406,7 +361,7 @@ def recognize_song_audd(audio_bytes):
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        f"🌟 *أهلاً بك يا غالي في بوت الخدمات الصاروخي* 🚀\n\nاختر الخدمة المطلوبة من الأزرار بالأسفل:\n\n{DEV_SIGNATURE}",
+        f"🌟 *أهلاً بك يا عزيزي في بوت الخدمات الشامل* 🚀\n\nاختر الخدمة المطلوبة من الأزرار بالأسفل:\n\n{DEV_SIGNATURE}",
         reply_markup=get_main_menu(),
         parse_mode='Markdown'
     )
@@ -417,9 +372,37 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
     chat_id = query.message.chat_id
     data = query.data
 
-    if data.startswith("hunt_type_"):
-        htype = data.split("_")[-1]
-        asyncio.create_task(hunt_username_task(context, chat_id, query.message.message_id, htype))
+    if data.startswith("hunt_count_"):
+        count = int(data.split("_")[-1])
+        status_msg = await query.message.reply_text(
+            f"🚀 جاري الفحص فائق السرعة لصيد ({count}) يوزر كابتال متاح...\n"
+            f"⏳ جارٍ فحص اليوزرات المتاحة بدقة، انتظر ثواني معدودة.", parse_mode='Markdown'
+        )
+        
+        found_usernames = await check_real_available_usernames(count)
+        
+        if found_usernames:
+            await status_msg.delete()
+            
+            result_text = f"╔══════════════════════════════════════╗\n"
+            result_text += f"       🎯 دَفـعـة الـيـوزرات المتاحة\n"
+            result_text += f"╚══════════════════════════════════════╝\n\n"
+            
+            for idx, u in enumerate(found_usernames, 1):
+                result_text += f"{idx}. @{u}\n"
+                
+                if idx % 5 == 0 and idx < len(found_usernames):
+                    result_text += f"\n─────────── 👑 {OWNER} ───────────\n\n"
+            
+            result_text += f"\n╔══════════════════════════════════════╗\n"
+            result_text += f"  👤 المطور: {OWNER} | {TITLE}\n"
+            result_text += f"  📢 القناة: {CHANNEL1}\n"
+            result_text += f"  ⏰ الوقت: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+            result_text += f"╚══════════════════════════════════════╝"
+            
+            await query.message.reply_text(result_text, parse_mode='Markdown')
+        else:
+            await status_msg.edit_text("❌ لم يتم إيجاد يوزرات متاحة في هذه الدفعة، اضغط على زر الصيد وجرب مرة ثانية.", parse_mode='Markdown')
 
     elif data.startswith("setmode_"):
         mode = data.replace("setmode_", "")
@@ -475,7 +458,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         await update.message.reply_text(f"📥 *أرسل رابط تيك توك، يوتيوب، انستغرام، أو بينترست مباشرة:*\n\n{DEV_SIGNATURE}", reply_markup=get_features_keyboard(), parse_mode='Markdown')
         return
     elif text == "🔍 صيد يوزرات تيليجرام الحقيقي (صاروخي)":
-        await update.message.reply_text(f"🔍 *اختر صيغة الصيد المطلوبة:*\n\n{DEV_SIGNATURE}", reply_markup=get_hunt_types_keyboard(), parse_mode='Markdown')
+        await update.message.reply_text(f"🔍 *اختر العدد المطلوب سحبه من اليوزرات الكابتال المتاحة:*\n\n{DEV_SIGNATURE}", reply_markup=get_hunt_count_keyboard(), parse_mode='Markdown')
         return
     elif text == "📚 ملف أوكسفورد":
         kb = InlineKeyboardMarkup([[InlineKeyboardButton("📥 اضغط هنا لتنزيل ملف أوكسفورد", url=OXFORD_PDF_URL)]])
@@ -527,7 +510,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
             else:
                 await update.message.reply_text(f"🎬 *اختر دقة الفيديو المطلوب:*\n\n{DEV_SIGNATURE}", reply_markup=get_video_quality_keyboard(), parse_mode='Markdown')
         else:
-            user_requests[chat_id] = {"url": target_url, "is_audio": False}
+            user_requests[chat_id] = {"url": target_url, "is_audio": is_audio if 'is_audio' in locals() else False}
             await update.message.reply_text(f"📥 *اختر نوع التحميل المطلوب:*\n\n{DEV_SIGNATURE}", reply_markup=get_media_type_keyboard(), parse_mode='Markdown')
         return
 
