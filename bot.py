@@ -4,6 +4,7 @@ import random
 import string
 import time
 import asyncio
+import aiohttp
 import requests
 from datetime import datetime
 from PIL import Image
@@ -116,7 +117,7 @@ def format_time_12h(time_str):
         return time_str
 
 # =============================================================================
-# دالة توليد اليوزرات الفورية الصاروخية (بدون صفنة وبدون حظر)
+# أداتك الأصلية الحقيقية للفحص (aiohttp)
 # =============================================================================
 def generate_5char_username():
     c1 = random.choice(letters)
@@ -126,23 +127,56 @@ def generate_5char_username():
     c5 = random.choice(alphanumeric)
     
     patterns = [
-        f"{c1}{c2}_{c3}{c4}",    # XX_XX
-        f"{c1}_{c2}{c3}{c4}",    # X_XXX
-        f"{c1}{c2}{c3}_{c4}",    # XXX_X
-        f"{c1}{c2}{c3}{c4}{c5}"  # XXXXX
+        f"{c1}{c2}_{c3}{c4}",    # XX_XX (4 حروف وشخطة = 5 خانات)
+        f"{c1}_{c2}{c3}{c4}",    # X_XXX (4 حروف وشخطة = 5 خانات)
+        f"{c1}{c2}{c3}_{c4}",    # XXX_X (4 حروف وشخطة = 5 خانات)
+        f"{c1}{c2}{c3}{c4}{c5}"  # XXXXX (خماسي صافي = 5 خانات)
     ]
     return random.choice(patterns)
 
-def get_instant_usernames(count):
+async def check_real_available_usernames(count):
     found_users = []
-    while len(found_users) < count:
-        u = generate_5char_username()
-        if u not in found_users:
-            found_users.append(u)
+    checked = 0
+    max_attempts = count * 300  
+
+    CONCURRENCY_LIMIT = 80
+    semaphore = asyncio.Semaphore(CONCURRENCY_LIMIT)
+    
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+    }
+
+    async with aiohttp.ClientSession(headers=headers) as session:
+        async def check_single():
+            nonlocal checked
+            while len(found_users) < count and checked < max_attempts:
+                user = generate_5char_username()
+                if user in found_users:
+                    continue
+                
+                checked += 1
+                async with semaphore:
+                    try:
+                        tg_url = f"https://t.me/{user}"
+                        async with session.get(tg_url, timeout=4) as tg_resp:
+                            tg_text = await tg_resp.text()
+                            if 'tgme_page_title' not in tg_text:
+                                frag_url = f"https://fragment.com/username/{user}"
+                                async with session.get(frag_url, timeout=4) as frag_resp:
+                                    frag_text = await frag_resp.text()
+                                    if "unavailable" in frag_text.lower() or "not found" in frag_text.lower():
+                                        if user not in found_users and len(found_users) < count:
+                                            found_users.append(user)
+                    except:
+                        pass
+
+        workers = [check_single() for _ in range(CONCURRENCY_LIMIT)]
+        await asyncio.gather(*workers)
+
     return found_users
 
 # =============================================================================
-# دوال تحميل الوسائط وباقي الخدمات
+# دوال تحميل الوسائط وباقي الخدمات الشاملة
 # =============================================================================
 def download_youtube_rapidapi(url, is_audio):
     if not RAPIDAPI_KEY: return None
@@ -326,6 +360,9 @@ def recognize_song_audd(audio_bytes):
         pass
     return None
 
+# =============================================================================
+# معالجات الأزرار والأوامر
+# =============================================================================
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         f"🌟 *أهلاً بك يا عزيزي في بوت الخدمات الشامل* 🚀\n\nاختر الخدمة المطلوبة من الأزرار بالأسفل:\n\n{DEV_SIGNATURE}",
@@ -339,13 +376,27 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
     chat_id = query.message.chat_id
     data = query.data
 
-    if data.startswith("hunt_count_"):
-        count = int(data.split("_")[-1])
-        found_usernames = get_instant_usernames(count)
+    if data.startswith("hunt_count_") or data.startswith("get_"):
+        if data.startswith("hunt_count_"):
+            count = int(data.split("_")[-1])
+        else:
+            count = int(data.split("_")[-1])
+
+        status_msg = await query.message.reply_text(
+            f"🚀 جاري الفحص الحقيقي والعميق لصيد ({count}) يوزر متاح (4 حروف وشخطة أو 5 حروف)...\n"
+            f"⏳ انتظر ثواني معدودة لتجهيز الدفعة الصاروخية.", parse_mode='Markdown'
+        )
+        
+        found_usernames = await check_real_available_usernames(count)
         
         if found_usernames:
+            try:
+                await status_msg.delete()
+            except:
+                pass
+            
             result_text = f"╔══════════════════════════════════════╗\n"
-            result_text += f"       🎯 دَفـعـة الـيـوزرات المقترحة\n"
+            result_text += f"       🎯 دَفـعـة الـيـوزرات المتاحة\n"
             result_text += f"╚══════════════════════════════════════╝\n\n"
             
             for idx, u in enumerate(found_usernames, 1):
@@ -362,7 +413,7 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
             
             await query.message.reply_text(result_text, parse_mode='Markdown')
         else:
-            await query.message.reply_text("❌ حدث خطأ، حاول مجدداً.", parse_mode='Markdown')
+            await status_msg.edit_text("❌ تأخرت المحاولات بسبب ندرة اليوزرات المتاحة، اضغط على زر الصيد وجرب مرة ثانية.", parse_mode='Markdown')
 
     elif data.startswith("setmode_"):
         mode = data.replace("setmode_", "")
@@ -414,11 +465,32 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
     chat_id = update.effective_chat.id
     text = update.message.text or ""
 
+    if text.strip() == "عرض":
+        keyboard = [
+            [
+                InlineKeyboardButton("🔍 سحب 5 يوزرات", callback_data="get_5"),
+                InlineKeyboardButton("🔍 سحب 10 يوزرات", callback_data="get_10")
+            ],
+            [
+                InlineKeyboardButton("🔍 سحب 50 يوزر", callback_data="get_50"),
+                InlineKeyboardButton("🔍 سحب 100 يوزر", callback_data="get_100")
+            ]
+        ]
+        await update.message.reply_text(
+            f"╔═════════════════════════╗\n"
+            f"   🔥 **قـائمـة الصيد (حقيقي وصاروخي)**\n"
+            f"╚═════════════════════════╝\n\n"
+            f"اختر العدد المطلوب يا عزيزي وتجيك الدفعة الحقيقية الكاملة:",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode='Markdown'
+        )
+        return
+
     if text.startswith("📥 تنزيل الفيديوهات والصوتيات"):
         await update.message.reply_text(f"📥 *أرسل رابط تيك توك، يوتيوب، انستغرام، أو بينترست مباشرة:*\n\n{DEV_SIGNATURE}", reply_markup=get_features_keyboard(), parse_mode='Markdown')
         return
     elif text == "🔍 صيد يوزرات تيليجرام الحقيقي (صاروخي)":
-        await update.message.reply_text(f"🔍 *اختر العدد المطلوب سحبه من اليوزرات الكابتال المتاحة:*\n\n{DEV_SIGNATURE}", reply_markup=get_hunt_count_keyboard(), parse_mode='Markdown')
+        await update.message.reply_text(f"🔍 *اختر العدد المطلوب سحبه من اليوزرات الحقيقية المتاحة:*\n\n{DEV_SIGNATURE}", reply_markup=get_hunt_count_keyboard(), parse_mode='Markdown')
         return
     elif text == "📚 ملف أوكسفورد":
         kb = InlineKeyboardMarkup([[InlineKeyboardButton("📥 اضغط هنا لتنزيل ملف أوكسفورد", url=OXFORD_PDF_URL)]])
@@ -536,5 +608,5 @@ if __name__ == '__main__':
     app.add_handler(MessageHandler(filters.VOICE | filters.AUDIO, handle_audio_voice_messages))
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_text_messages))
 
-    print("Bot is running perfectly...")
+    print("Bot is running perfectly with Real Aiohttp Hunter...")
     app.run_polling()
