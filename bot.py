@@ -116,7 +116,7 @@ def format_time_12h(time_str):
         return time_str
 
 # =============================================================================
-# دوال صيد اليوزرات غير المتزامنة (تعمل بالخلفية بدون تجميد البوت)
+# دالة توليد اليوزرات الفورية الصاروخية (بدون صفنة وبدون حظر)
 # =============================================================================
 def generate_5char_username():
     c1 = random.choice(letters)
@@ -133,41 +133,13 @@ def generate_5char_username():
     ]
     return random.choice(patterns)
 
-def check_single_username(username):
-    try:
-        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
-        url = f"https://t.me/{username}"
-        res = requests.get(url, headers=headers, timeout=1.2)
-        if res.status_code == 200:
-            text = res.text
-            if "tgme_page_extra" not in text and "Preview channel" not in text and "Send Message" not in text and "tgme_page_title" not in text:
-                frag_url = f"https://fragment.com/username/{username}"
-                frag_res = requests.get(frag_url, headers=headers, timeout=1.2)
-                if frag_res.status_code == 200:
-                    frag_text = frag_res.text
-                    if "unavailable" in frag_text.lower() or "not found" in frag_text.lower():
-                        return True
-    except:
-        pass
-    return False
-
-def sync_hunt_worker(count):
+def get_instant_usernames(count):
     found_users = []
-    attempts = 0
-    max_attempts = count * 150
-    while len(found_users) < count and attempts < max_attempts:
-        attempts += 1
-        user = generate_5char_username()
-        if user in found_users:
-            continue
-        if check_single_username(user):
-            if user not in found_users:
-                found_users.append(user)
+    while len(found_users) < count:
+        u = generate_5char_username()
+        if u not in found_users:
+            found_users.append(u)
     return found_users
-
-async def check_real_available_usernames(count):
-    # تشغيل البحث في خلفية منفصلة تماماً لكي لا يتوقف البوت
-    return await asyncio.to_thread(sync_hunt_worker, count)
 
 # =============================================================================
 # دوال تحميل الوسائط وباقي الخدمات
@@ -369,21 +341,11 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
 
     if data.startswith("hunt_count_"):
         count = int(data.split("_")[-1])
-        status_msg = await query.message.reply_text(
-            f"🚀 جاري الفحص فائق السرعة لصيد ({count}) يوزر كابتال متاح...\n"
-            f"⏳ جارٍ فحص اليوزرات المتاحة بدقة، انتظر ثواني معدودة.", parse_mode='Markdown'
-        )
-        
-        found_usernames = await check_real_available_usernames(count)
+        found_usernames = get_instant_usernames(count)
         
         if found_usernames:
-            try:
-                await status_msg.delete()
-            except:
-                pass
-            
             result_text = f"╔══════════════════════════════════════╗\n"
-            result_text += f"       🎯 دَفـعـة الـيـوزرات المتاحة\n"
+            result_text += f"       🎯 دَفـعـة الـيـوزرات المقترحة\n"
             result_text += f"╚══════════════════════════════════════╝\n\n"
             
             for idx, u in enumerate(found_usernames, 1):
@@ -400,7 +362,7 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
             
             await query.message.reply_text(result_text, parse_mode='Markdown')
         else:
-            await status_msg.edit_text("❌ لم يتم إيجاد يوزرات متاحة في هذه الدفعة، اضغط على زر الصيد وجرب مرة ثانية.", parse_mode='Markdown')
+            await query.message.reply_text("❌ حدث خطأ، حاول مجدداً.", parse_mode='Markdown')
 
     elif data.startswith("setmode_"):
         mode = data.replace("setmode_", "")
