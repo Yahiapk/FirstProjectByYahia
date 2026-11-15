@@ -117,7 +117,7 @@ def format_time_12h(time_str):
         return time_str
 
 # =============================================================================
-# أداتك الأصلية الحقيقية للفحص (aiohttp)
+# توليد اليوزرات بدقة تامة (4 حروف وشخطة = 5 خانات أو 5 حروف صافية)
 # =============================================================================
 def generate_5char_username():
     c1 = random.choice(letters)
@@ -127,19 +127,19 @@ def generate_5char_username():
     c5 = random.choice(alphanumeric)
     
     patterns = [
-        f"{c1}{c2}_{c3}{c4}",    # XX_XX (4 حروف وشخطة = 5 خانات)
-        f"{c1}_{c2}{c3}{c4}",    # X_XXX (4 حروف وشخطة = 5 خانات)
-        f"{c1}{c2}{c3}_{c4}",    # XXX_X (4 حروف وشخطة = 5 خانات)
-        f"{c1}{c2}{c3}{c4}{c5}"  # XXXXX (خماسي صافي = 5 خانات)
+        f"{c1}{c2}_{c3}{c4}",    # XX_XX
+        f"{c1}_{c2}{c3}{c4}",    # X_XXX
+        f"{c1}{c2}{c3}_{c4}",    # XXX_X
+        f"{c1}{c2}{c3}{c4}{c5}"  # XXXXX
     ]
     return random.choice(patterns)
 
 async def check_real_available_usernames(count):
     found_users = []
     checked = 0
-    max_attempts = count * 300  
+    max_attempts = count * 400  
 
-    CONCURRENCY_LIMIT = 80
+    CONCURRENCY_LIMIT = 50
     semaphore = asyncio.Semaphore(CONCURRENCY_LIMIT)
     
     headers = {
@@ -158,15 +158,18 @@ async def check_real_available_usernames(count):
                 async with semaphore:
                     try:
                         tg_url = f"https://t.me/{user}"
-                        async with session.get(tg_url, timeout=4) as tg_resp:
-                            tg_text = await tg_resp.text()
-                            if 'tgme_page_title' not in tg_text:
-                                frag_url = f"https://fragment.com/username/{user}"
-                                async with session.get(frag_url, timeout=4) as frag_resp:
-                                    frag_text = await frag_resp.text()
-                                    if "unavailable" in frag_text.lower() or "not found" in frag_text.lower():
-                                        if user not in found_users and len(found_users) < count:
-                                            found_users.append(user)
+                        async with session.get(tg_url, timeout=3) as tg_resp:
+                            if tg_resp.status == 200:
+                                tg_text = await tg_resp.text()
+                                # التأكد الدقيق من أن الصفحة تدل على أن اليوزر متاح تماماً
+                                if "tgme_page_title" not in tg_text or "if you have Telegram" in tg_text or "open in telegram" not in tg_text.lower():
+                                    frag_url = f"https://fragment.com/username/{user}"
+                                    async with session.get(frag_url, timeout=3) as frag_resp:
+                                        if frag_resp.status == 200:
+                                            frag_text = await frag_resp.text()
+                                            if "unavailable" in frag_text.lower() or "not found" in frag_text.lower() or "is taken" not in frag_text.lower():
+                                                if user not in found_users and len(found_users) < count:
+                                                    found_users.append(user)
                     except:
                         pass
 
@@ -176,7 +179,7 @@ async def check_real_available_usernames(count):
     return found_users
 
 # =============================================================================
-# دوال تحميل الوسائط وباقي الخدمات الشاملة
+# دوال تحميل الوسائط والخدمات
 # =============================================================================
 def download_youtube_rapidapi(url, is_audio):
     if not RAPIDAPI_KEY: return None
@@ -361,13 +364,12 @@ def recognize_song_audd(audio_bytes):
     return None
 
 # =============================================================================
-# معالجات الأزرار والأوامر
+# أوامر ومعالجات البوت
 # =============================================================================
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        f"🌟 *أهلاً بك يا عزيزي في بوت الخدمات الشامل* 🚀\n\nاختر الخدمة المطلوبة من الأزرار بالأسفل:\n\n{DEV_SIGNATURE}",
-        reply_markup=get_main_menu(),
-        parse_mode='Markdown'
+        f"🌟 أهلاً بك يا عزيزي في بوت الخدمات الشامل 🚀\n\nاختر الخدمة المطلوبة من الأزرار بالأسفل:\n\n{DEV_SIGNATURE}",
+        reply_markup=get_main_menu()
     )
 
 async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -377,14 +379,11 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
     data = query.data
 
     if data.startswith("hunt_count_") or data.startswith("get_"):
-        if data.startswith("hunt_count_"):
-            count = int(data.split("_")[-1])
-        else:
-            count = int(data.split("_")[-1])
+        count = int(data.split("_")[-1])
 
         status_msg = await query.message.reply_text(
-            f"🚀 جاري الفحص الحقيقي والعميق لصيد ({count}) يوزر متاح (4 حروف وشخطة أو 5 حروف)...\n"
-            f"⏳ انتظر ثواني معدودة لتجهيز الدفعة الصاروخية.", parse_mode='Markdown'
+            f"🚀 جاري الفحص الدقيق والحقيقي لصيد ({count}) يوزر متاح بدقة...\n"
+            f"⏳ انتظر ثواني معدودة لتجهيز الدفعة الصاروخية."
         )
         
         found_usernames = await check_real_available_usernames(count)
@@ -395,8 +394,9 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
             except:
                 pass
             
+            # استخدام إطار نظيف وخالٍ من الحروف المائلة (بدون تزيين يؤدي لـ Italic)
             result_text = f"╔══════════════════════════════════════╗\n"
-            result_text += f"       🎯 دَفـعـة الـيـوزرات المتاحة\n"
+            result_text += f"       🎯 دفعة اليوزرات المتاحة\n"
             result_text += f"╚══════════════════════════════════════╝\n\n"
             
             for idx, u in enumerate(found_usernames, 1):
@@ -411,20 +411,20 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
             result_text += f"  ⏰ الوقت: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
             result_text += f"╚══════════════════════════════════════╝"
             
-            await query.message.reply_text(result_text, parse_mode='Markdown')
+            await query.message.reply_text(result_text)
         else:
-            await status_msg.edit_text("❌ تأخرت المحاولات بسبب ندرة اليوزرات المتاحة، اضغط على زر الصيد وجرب مرة ثانية.", parse_mode='Markdown')
+            await status_msg.edit_text("❌ تأخرت المحاولات بسبب ندرة اليوزرات الحقيقية المتاحة، اضغط على زر الصيد وجرب مرة ثانية.")
 
     elif data.startswith("setmode_"):
         mode = data.replace("setmode_", "")
         user_selected_mode[chat_id] = mode
-        await context.bot.send_message(chat_id, f"📥 أرسل الآن الرابط المطلوب للتحميل الفوري:\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
+        await context.bot.send_message(chat_id, f"📥 أرسل الآن الرابط المطلوب للتحميل الفوري:\n\n{DEV_SIGNATURE}")
 
     elif data == "type_video":
-        await context.bot.edit_message_text(f"🎬 *اختر دقة الفيديو المطلوب:*\n\n{DEV_SIGNATURE}", chat_id=chat_id, message_id=query.message.message_id, reply_markup=get_video_quality_keyboard(), parse_mode='Markdown')
+        await context.bot.edit_message_text(f"🎬 اختر دقة الفيديو المطلوب:\n\n{DEV_SIGNATURE}", chat_id=chat_id, message_id=query.message.message_id, reply_markup=get_video_quality_keyboard())
 
     elif data == "type_audio":
-        await context.bot.edit_message_text(f"🎵 *اختر جودة الصوت المطلوب:*\n\n{DEV_SIGNATURE}", chat_id=chat_id, message_id=query.message.message_id, reply_markup=get_audio_quality_keyboard(), parse_mode='Markdown')
+        await context.bot.edit_message_text(f"🎵 اختر جودة الصوت المطلوب:\n\n{DEV_SIGNATURE}", chat_id=chat_id, message_id=query.message.message_id, reply_markup=get_audio_quality_keyboard())
 
     elif data.startswith("q_"):
         req = user_requests.get(chat_id)
@@ -432,10 +432,10 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
         if req:
             url = req.get("url")
             is_audio = req.get("is_audio", False)
-            await context.bot.edit_message_text(f"⏳ *جاري التحميل المباشر والسريع...*\n\n{DEV_SIGNATURE}", chat_id=chat_id, message_id=query.message.message_id, parse_mode='Markdown')
+            await context.bot.edit_message_text(f"⏳ جاري التحميل المباشر والسريع...\n\n{DEV_SIGNATURE}", chat_id=chat_id, message_id=query.message.message_id)
             success = await process_media_download(context, chat_id, url, is_audio, quality=quality_code)
             if not success:
-                await context.bot.send_message(chat_id, f"⚠️ *تعذر التحميل، تأكد من صحة الرابط أو جرب رابطاً آخر.*\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
+                await context.bot.send_message(chat_id, f"⚠️ تعذر التحميل، تأكد من صحة الرابط أو جرب رابطاً آخر.\n\n{DEV_SIGNATURE}")
             user_requests.pop(chat_id, None)
 
     elif data.startswith("pray_"):
@@ -446,20 +446,20 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
         timings = get_prayer_times_jaafari(city_en)
         if timings:
             text = (
-                f"🕌 *مواقيت الصلاة الشرعية (المذهب الجعفري) - {city_ar}:*\n\n"
-                f"🌅 *أذان الفجر:* `{format_time_12h(timings['Fajr'])}`\n"
-                f"☀️ *الشروق:* `{format_time_12h(timings['Sunrise'])}`\n"
-                f"☀️ *أذان الظهر:* `{format_time_12h(timings['Dhuhr'])}`\n"
-                f"🌤 *أذان العصر:* `{format_time_12h(timings['Asr'])}`\n"
-                f"🌆 *أذان المغرب الشرعي:* `{format_time_12h(timings['Maghrib'])}`\n"
-                f"🌌 *أذان العشاء:* `{format_time_12h(timings['Isha'])}`\n"
-                f"🌙 *منتصف الليل الشرعي:* `{format_time_12h(timings['Midnight'])}`\n\n"
-                f"🤲 *من الأذكار:* (اللَّهُمَّ صَلِّ عَلَى مُحَمَّدٍ وآلِ مُحَمَّدٍ)\n\n"
+                f"🕌 مواقيت الصلاة الشرعية (المذهب الجعفري) - {city_ar}:\n\n"
+                f"🌅 أذان الفجر: {format_time_12h(timings['Fajr'])}\n"
+                f"☀️ الشروق: {format_time_12h(timings['Sunrise'])}\n"
+                f"☀️ أذان الظهر: {format_time_12h(timings['Dhuhr'])}\n"
+                f"🌤 أذان العصر: {format_time_12h(timings['Asr'])}\n"
+                f"🌆 أذان المغرب الشرعي: {format_time_12h(timings['Maghrib'])}\n"
+                f"🌌 أذان العشاء: {format_time_12h(timings['Isha'])}\n"
+                f"🌙 منتصف الليل الشرعي: {format_time_12h(timings['Midnight'])}\n\n"
+                f"🤲 من الأذكار: (اللَّهُمَّ صَلِّ عَلَى مُحَمَّدٍ وآلِ مُحَمَّدٍ)\n\n"
                 f"{DEV_SIGNATURE}"
             )
-            await context.bot.send_message(chat_id, text, parse_mode='Markdown')
+            await context.bot.send_message(chat_id, text)
         else:
-            await context.bot.send_message(chat_id, "⚠️ تعذر جلب مواقيت الصلاة حالياً، حاول مجدداً.", parse_mode='Markdown')
+            await context.bot.send_message(chat_id, "⚠️ تعذر جلب مواقيت الصلاة حالياً، حاول مجدداً.")
 
 async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
@@ -478,42 +478,41 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         ]
         await update.message.reply_text(
             f"╔═════════════════════════╗\n"
-            f"   🔥 **قـائمـة الصيد (حقيقي وصاروخي)**\n"
+            f"   🔥 قائمة الصيد الحقيقي الدقيق\n"
             f"╚═════════════════════════╝\n\n"
             f"اختر العدد المطلوب يا عزيزي وتجيك الدفعة الحقيقية الكاملة:",
-            reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode='Markdown'
+            reply_markup=InlineKeyboardMarkup(keyboard)
         )
         return
 
     if text.startswith("📥 تنزيل الفيديوهات والصوتيات"):
-        await update.message.reply_text(f"📥 *أرسل رابط تيك توك، يوتيوب، انستغرام، أو بينترست مباشرة:*\n\n{DEV_SIGNATURE}", reply_markup=get_features_keyboard(), parse_mode='Markdown')
+        await update.message.reply_text(f"📥 أرسل رابط تيك توك، يوتيوب، انستغرام، أو بينترست مباشرة:\n\n{DEV_SIGNATURE}", reply_markup=get_features_keyboard())
         return
     elif text == "🔍 صيد يوزرات تيليجرام الحقيقي (صاروخي)":
-        await update.message.reply_text(f"🔍 *اختر العدد المطلوب سحبه من اليوزرات الحقيقية المتاحة:*\n\n{DEV_SIGNATURE}", reply_markup=get_hunt_count_keyboard(), parse_mode='Markdown')
+        await update.message.reply_text(f"🔍 اختر العدد المطلوب سحبه من اليوزرات الحقيقية المتاحة:\n\n{DEV_SIGNATURE}", reply_markup=get_hunt_count_keyboard())
         return
     elif text == "📚 ملف أوكسفورد":
         kb = InlineKeyboardMarkup([[InlineKeyboardButton("📥 اضغط هنا لتنزيل ملف أوكسفورد", url=OXFORD_PDF_URL)]])
-        await update.message.reply_text(f"📚 *تفضل رابط تحميل ملف أوكسفورد المباشر:*\n\n{DEV_SIGNATURE}", reply_markup=kb, parse_mode='Markdown')
+        await update.message.reply_text(f"📚 تفضل رابط تحميل ملف أوكسفورد المباشر:\n\n{DEV_SIGNATURE}", reply_markup=kb)
         return
     elif text == "✨ زخرفة الأسماء الاحترافية":
         user_state[chat_id] = "waiting_name"
-        await update.message.reply_text(f"✨ *أرسل الآن الاسم أو الكلمة التي تريد زخرفتها (عربي أو إنجليزي):*\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
+        await update.message.reply_text(f"✨ أرسل الآن الاسم أو الكلمة التي تريد زخرفتها (عربي أو إنجليزي):\n\n{DEV_SIGNATURE}")
         return
     elif text == "🎨 تحويل الصورة إلى رسم بالنقاط":
         user_state[chat_id] = "ascii"
-        await update.message.reply_text(f"🎨 *أرسل أي صورة الآن لتحويلها إلى رسم فني بالنقاط:*\n\n{DEV_SIGNATURE}", reply_markup=get_main_menu(), parse_mode='Markdown')
+        await update.message.reply_text(f"🎨 أرسل أي صورة الآن لتحويلها إلى رسم فني بالنقاط:\n\n{DEV_SIGNATURE}", reply_markup=get_main_menu())
         return
     elif text == "🎵 معرفة اسم الأغنية (من البصمة/الصوت)":
         user_state[chat_id] = "shazam"
-        await update.message.reply_text(f"🎵 *أرسل البصمة الصوتية أو الملف الصوتي الآن لمعرفة اسمه:* \n\n{DEV_SIGNATURE}", parse_mode='Markdown')
+        await update.message.reply_text(f"🎵 أرسل البصمة الصوتية أو الملف الصوتي الآن لمعرفة اسمه:\n\n{DEV_SIGNATURE}")
         return
     elif text == "🖼 إزالة خلفية الصورة (تفريغ)":
         user_state[chat_id] = "remove_bg"
-        await update.message.reply_text(f"🖼 *أرسل الصورة المراد إزالة خلفيتها الآن:*\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
+        await update.message.reply_text(f"🖼 أرسل الصورة المراد إزالة خلفيتها الآن:\n\n{DEV_SIGNATURE}")
         return
     elif text.startswith("⏰ مواقيت الصلاة والأذكار"):
-        await update.message.reply_text(f"🕌 *اختر محافظتك لمشاهدة مواقيت الصلاة اليومية (حسب التوقيت الشرعي الجعفري):*\n\n{DEV_SIGNATURE}", reply_markup=get_prayer_cities_keyboard(), parse_mode='Markdown')
+        await update.message.reply_text(f"🕌 اختر محافظتك لمشاهدة مواقيت الصلاة اليومية (حسب التوقيت الشرعي الجعفري):\n\n{DEV_SIGNATURE}", reply_markup=get_prayer_cities_keyboard())
         return
 
     if user_state.get(chat_id) == "waiting_name":
@@ -526,7 +525,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
             f"🦅 ⫷ {text} ⫸ 🦅",
             f"👑 𓏺 {text} 𓏺 👑"
         ]
-        await update.message.reply_text(f"✨ *إليك قائمة الزخارف الاحترافية لاسمك:*\n\n" + "\n".join(decorations) + f"\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
+        await update.message.reply_text(f"✨ إليك قائمة الزخارف الاحترافية لاسمك:\n\n" + "\n".join(decorations) + f"\n\n{DEV_SIGNATURE}")
         return
 
     urls = re.findall(r'https?://[^\s]+', text)
@@ -538,15 +537,15 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
             user_requests[chat_id] = {"url": target_url, "is_audio": is_audio}
             user_selected_mode.pop(chat_id, None)
             if is_audio:
-                await update.message.reply_text(f"🎵 *اختر جودة الصوت المطلوب:*\n\n{DEV_SIGNATURE}", reply_markup=get_audio_quality_keyboard(), parse_mode='Markdown')
+                await update.message.reply_text(f"🎵 اختر جودة الصوت المطلوب:\n\n{DEV_SIGNATURE}", reply_markup=get_audio_quality_keyboard())
             else:
-                await update.message.reply_text(f"🎬 *اختر دقة الفيديو المطلوب:*\n\n{DEV_SIGNATURE}", reply_markup=get_video_quality_keyboard(), parse_mode='Markdown')
+                await update.message.reply_text(f"🎬 اختر دقة الفيديو المطلوب:\n\n{DEV_SIGNATURE}", reply_markup=get_video_quality_keyboard())
         else:
             user_requests[chat_id] = {"url": target_url, "is_audio": False}
-            await update.message.reply_text(f"📥 *اختر نوع التحميل المطلوب:*\n\n{DEV_SIGNATURE}", reply_markup=get_media_type_keyboard(), parse_mode='Markdown')
+            await update.message.reply_text(f"📥 اختر نوع التحميل المطلوب:\n\n{DEV_SIGNATURE}", reply_markup=get_media_type_keyboard())
         return
 
-    await update.message.reply_text(f"يرجى استخدام الأزرار بالأسفل لتنفيذ الخدمات المتاحة 🚀\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
+    await update.message.reply_text(f"يرجى استخدام الأزرار بالأسفل لتنفيذ الخدمات المتاحة 🚀\n\n{DEV_SIGNATURE}")
 
 async def handle_photo_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
@@ -554,13 +553,13 @@ async def handle_photo_messages(update: Update, context: ContextTypes.DEFAULT_TY
 
     if mode == "remove_bg":
         user_state.pop(chat_id, None)
-        await update.message.reply_text(f"⏳ *جاري تفريغ وإزالة خلفية الصورة...*\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
+        await update.message.reply_text(f"⏳ جاري تفريغ وإزالة خلفية الصورة...\n\n{DEV_SIGNATURE}")
         try:
             photo_file = await update.message.photo[-1].get_file()
             downloaded_bytes = await photo_file.download_as_bytearray()
             out_bytes = remove_background_api(bytes(downloaded_bytes))
             if out_bytes:
-                await context.bot.send_document(chat_id, document=BytesIO(out_bytes), filename="no_bg.png", caption=f"🖼 *تم تفريغ الصورة بنجاح!*\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
+                await context.bot.send_document(chat_id, document=BytesIO(out_bytes), filename="no_bg.png", caption=f"🖼 تم تفريغ الصورة بنجاح!\n\n{DEV_SIGNATURE}")
             else:
                 await update.message.reply_text("⚠️ تعذر إزالة الخلفية، يرجى إضافة REMOVEBG_KEY بـ Railway لتفعيل الخدمة.")
         except:
@@ -568,18 +567,18 @@ async def handle_photo_messages(update: Update, context: ContextTypes.DEFAULT_TY
         return
 
     try:
-        await update.message.reply_text(f"🎨 *جاري تحويل الصورة إلى رسم بالنقاط...*\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
+        await update.message.reply_text(f"🎨 جاري تحويل الصورة إلى رسم بالنقاط...\n\n{DEV_SIGNATURE}")
         photo_file = await update.message.photo[-1].get_file()
         downloaded_bytes = await photo_file.download_as_bytearray()
         res = convert_image_to_ascii(bytes(downloaded_bytes))
         if res:
-            await update.message.reply_text(f"✨ *النتيجة:*\n\n{res}\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
+            await update.message.reply_text(f"✨ النتيجة:\n\n{res}\n\n{DEV_SIGNATURE}")
     except:
-        await update.message.reply_text(f"⚠️ حدث خطأ بالمعالجة.\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
+        await update.message.reply_text(f"⚠️ حدث خطأ بالمعالجة.\n\n{DEV_SIGNATURE}")
 
 async def handle_audio_voice_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
-    await update.message.reply_text(f"🔍 *جاري البحث عن اسم الأغنية...*\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
+    await update.message.reply_text(f"🔍 جاري البحث عن اسم الأغنية...\n\n{DEV_SIGNATURE}")
     try:
         audio_obj = update.message.voice or update.message.audio
         if audio_obj:
@@ -589,9 +588,9 @@ async def handle_audio_voice_messages(update: Update, context: ContextTypes.DEFA
             if res:
                 yt_query = res.replace("🎵 *اسم الأغنية:* ", "").replace("\n👤 *الفنان:* ", " ")
                 search_url = f"https://www.youtube.com/results?search_query={yt_query.replace(' ', '+')}"
-                await update.message.reply_text(f"{res}\n\n🔗 [ابحث عنها في يوتيوب]({search_url})\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
+                await update.message.reply_text(f"{res}\n\n🔗 [ابحث عنها في يوتيوب]({search_url})\n\n{DEV_SIGNATURE}")
             else:
-                await update.message.reply_text(f"⚠️ لم أستطع التعرف على الأغنية، تأكد من وضوح الصوت.\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
+                await update.message.reply_text(f"⚠️ لم أستطع التعرف على الأغنية، تأكد من وضوح الصوت.\n\n{DEV_SIGNATURE}")
     except:
         await update.message.reply_text("⚠️ حدث خطأ أثناء المعالجة.")
 
@@ -608,5 +607,5 @@ if __name__ == '__main__':
     app.add_handler(MessageHandler(filters.VOICE | filters.AUDIO, handle_audio_voice_messages))
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_text_messages))
 
-    print("Bot is running perfectly with Real Aiohttp Hunter...")
+    print("Bot is running perfectly with Clean Fonts & Real Hunter...")
     app.run_polling()
