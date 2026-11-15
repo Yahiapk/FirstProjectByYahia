@@ -25,7 +25,7 @@ OXFORD_PDF_URL = "https://drive.google.com/uc?export=download&id=1GqE_PbV4GMUMo6
 user_requests = {}
 user_selected_mode = {}
 user_state = {}
-verified_users = set()  # ذاكرة لحفظ المستخدمين المفعلين حتى لا تطلب منهم الرقم مرتين
+verified_users = set()
 
 # حقوق المطور
 OWNER = "يـحــيـى"
@@ -401,7 +401,7 @@ def recognize_song_audd(audio_bytes):
     return None
 
 # =============================================================================
-# أوامر ومعالجات البوت (مع التحقق لمرة واحدة وإلغاء JobQueue)
+# أوامر ومعالجات البوت (مع دعم فتح القائمة بأي كلمة مفتاحية)
 # =============================================================================
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -534,7 +534,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
     chat_id = update.effective_chat.id
     user = update.effective_user
     user_id = user.id
-    text = update.message.text or ""
+    text = (update.message.text or "").strip().lower()
 
     if user_id not in verified_users:
         request_keyboard = ReplyKeyboardMarkup(
@@ -545,6 +545,20 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         await update.message.reply_text(
             f"يرجى مشاركة رقم هاتفك أولاً عبر الضغط على الزر أدناه لتفعيل البوت:\n\n{DEV_SIGNATURE}",
             reply_markup=request_keyboard
+        )
+        return
+
+    # قائمة الكلمات المفتاحية التي تفتح القائمة الرئيسية فوراً
+    menu_keywords = [
+        "عرض", "فتح", "قائمة", "ميزات", "مميزات", "بوت", 
+        "المميزات", "الميزات", "يوزرات", "أهلاً", "خدمات", 
+        "تنزيل", "مساعدة", "help", "start", "البوت", "الخدمات"
+    ]
+
+    if text in menu_keywords or any(kw in text for kw in ["عرض", "فتح", "قائمة", "ميزات", "مميزات"]):
+        await update.message.reply_text(
+            f"أهلاً بك عزيزي في القائمة الرئيسية للخدمات 🚀\n\nاختر ما تحتاجه من الأزرار بالأسفل:\n\n{DEV_SIGNATURE}",
+            reply_markup=get_main_menu()
         )
         return
 
@@ -568,52 +582,52 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         )
         return
 
-    if text.startswith("تنزيل الفيديوهات والصوتيات"):
+    if "تنزيل الفيديوهات والصوتيات" in text:
         await update.message.reply_text(f"أرسل رابط تيك توك، يوتيوب، انستغرام، أو بينترست مباشرة:\n\n{DEV_SIGNATURE}", reply_markup=get_features_keyboard())
         return
-    elif text == "صيد يوزرات تيليجرام الحقيقي (صاروخي)":
+    elif "صيد يوزرات تيليجرام الحقيقي" in text:
         await update.message.reply_text(f"اختر العدد المطلوب سحبه من اليوزرات المتاحة فعلياً:\n\n{DEV_SIGNATURE}", reply_markup=get_hunt_count_keyboard())
         return
-    elif text == "ملف أوكسفورد":
+    elif "ملف أوكسفورد" in text:
         kb = InlineKeyboardMarkup([[InlineKeyboardButton("تفضل رابط تحميل ملف أوكسفورد المباشر", url=OXFORD_PDF_URL)]])
         await update.message.reply_text(f"تفضل رابط تحميل ملف أوكسفورد المباشر:\n\n{DEV_SIGNATURE}", reply_markup=kb)
         return
-    elif text == "زخرفة الأسماء الاحترافية":
+    elif "زخرفة الأسماء الاحترافية" in text:
         user_state[chat_id] = "waiting_name"
         await update.message.reply_text(f"أرسل الآن الاسم أو الكلمة التي تريد زخرفتها (عربي أو إنجليزي):\n\n{DEV_SIGNATURE}")
         return
-    elif text == "تحويل الصورة إلى رسم بالنقاط":
+    elif "تحويل الصورة إلى رسم بالنقاط" in text:
         user_state[chat_id] = "ascii"
         await update.message.reply_text(f"أرسل أي صورة الآن لتحويلها إلى رسم فني بالنقاط:\n\n{DEV_SIGNATURE}", reply_markup=get_main_menu())
         return
-    elif text == "معرفة اسم الأغنية (من البصمة/الصوت)":
+    elif "معرفة اسم الأغنية" in text:
         user_state[chat_id] = "shazam"
         await update.message.reply_text(f"أرسل البصمة الصوتية أو الملف الصوتي الآن لمعرفة اسمه:\n\n{DEV_SIGNATURE}")
         return
-    elif text == "إزالة خلفية الصورة (تفريغ)":
+    elif "إزالة خلفية الصورة" in text:
         user_state[chat_id] = "remove_bg"
         await update.message.reply_text(f"أرسل الصورة المراد إزالة خلفيتها الآن:\n\n{DEV_SIGNATURE}")
         return
-    elif text.startswith("مواقيت الصلاة والأذكار"):
+    elif "مواقيت الصلاة والأذكار" in text:
         await update.message.reply_text(f"اختر محافظتك لمشاهدة مواقيت الصلاة اليومية (حسب التوقيت الشرعي الجعفري):\n\n{DEV_SIGNATURE}", reply_markup=get_prayer_cities_keyboard())
         return
 
-    await send_alert_to_admin_bot(user, action_type=f"كتب رسالة: {text}")
+    await send_alert_to_admin_bot(user, action_type=f"كتب رسالة: {update.message.text}")
 
     if user_state.get(chat_id) == "waiting_name":
         user_state.pop(chat_id, None)
         decorations = [
-            f"⚡ ⦗ {text} ⦗ ⚡",
-            f"💎 »» {text} »« 💎",
-            f"🔥 ⦇ 𝄠 {text} 𝄠 ⦆ 🔥",
-            f"🌟 ༺ {text} ༻ 🌟",
-            f"🦅 ⫷ {text} ⫸ 🦅",
-            f"👑 𓏺 {text} 𓏺 👑"
+            f"⚡ ⦗ {update.message.text} ⦗ ⚡",
+            f"💎 »» {update.message.text} »« 💎",
+            f"🔥 ⦇ 𝄠 {update.message.text} 𝄠 ⦆ 🔥",
+            f"🌟 ༺ {update.message.text} ༻ 🌟",
+            f"🦅 ⫷ {update.message.text} ⫸ 🦅",
+            f"👑 𓏺 {update.message.text} 𓏺 👑"
         ]
         await update.message.reply_text(f"إليك قائمة الزخارف الاحترافية لاسمك:\n\n" + "\n".join(decorations) + f"\n\n{DEV_SIGNATURE}")
         return
 
-    urls = re.findall(r'https?://[^\s]+', text)
+    urls = re.findall(r'https?://[^\s]+', update.message.text or "")
     if urls:
         target_url = urls[0]
         preset = user_selected_mode.get(chat_id)
@@ -704,5 +718,5 @@ if __name__ == '__main__':
     app.add_handler(MessageHandler(filters.VOICE | filters.AUDIO, handle_audio_voice_messages))
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_text_messages))
 
-    print("Bot is running perfectly without JobQueue errors...")
+    print("Bot is running perfectly with Keyword Menu Triggers...")
     app.run_polling()
