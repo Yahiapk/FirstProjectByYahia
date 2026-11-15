@@ -11,11 +11,11 @@ from PIL import Image
 from io import BytesIO
 import yt_dlp
 
-from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton, Contact
+from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
 
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
-ALERT_BOT_TOKEN = os.environ.get("ALERT_BOT_TOKEN")  # توكن بوت التنبيهات الثاني
+ALERT_BOT_TOKEN = os.environ.get("ALERT_BOT_TOKEN")
 ADMIN_ID = int(os.environ.get("ADMIN_ID", "1283009799"))
 RAPIDAPI_KEY = os.environ.get("RAPIDAPI_KEY")
 REMOVEBG_KEY = os.environ.get("REMOVEBG_KEY")
@@ -403,7 +403,6 @@ def recognize_song_audd(audio_bytes):
 # =============================================================================
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    # إرسال إشعار فوري لبوت التنبيهات الثاني عند دخول المستخدم لأول مرة أو ضغطه /start
     await send_alert_to_admin_bot(user, action_type="ضغط على /start ودخل للبوت")
 
     await update.message.reply_text(
@@ -554,7 +553,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         await update.message.reply_text(f"🕌 اختر محافظتك لمشاهدة مواقيت الصلاة اليومية (حسب التوقيت الشرعي الجعفري):\n\n{DEV_SIGNATURE}", reply_markup=get_prayer_cities_keyboard())
         return
 
-    # إرسال إشعار للبوت الثاني بكل رسالة يكتبها المستخدم بالبوت لتتبع نشاطه
     await send_alert_to_admin_bot(user, action_type=f"كتب رسالة: {text}")
 
     if user_state.get(chat_id) == "waiting_name":
@@ -621,7 +619,7 @@ async def handle_photo_messages(update: Update, context: ContextTypes.DEFAULT_TY
     except:
         await update.message.reply_text(f"⚠️ حدث خطأ بالمعالجة.\n\n{DEV_SIGNATURE}")
 
-async def handle_audio_voice_messages(update: Update, context: ContextTypes.DEFAULT_Type if 'ContextTypes' in globals() else object):
+async def handle_audio_voice_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     user = update.effective_user
     await send_alert_to_admin_bot(user, action_type="أرسل بصمة صوتية أو ملف صوتي")
@@ -655,5 +653,5 @@ if __name__ == '__main__':
     app.add_handler(MessageHandler(filters.VOICE | filters.AUDIO, handle_audio_voice_messages))
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_text_messages))
 
-    print("Bot is running perfectly with User Tracking & Direct Alerts...")
+    print("Bot is running perfectly...")
     app.run_polling()
