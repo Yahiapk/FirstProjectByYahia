@@ -26,6 +26,7 @@ user_requests = {}
 user_selected_mode = {}
 user_state = {}
 verified_users = set()
+banned_users = set()  # ذاكرة لحفظ المستخدمين المحظورين من قبل المطور
 
 # حقوق المطور
 OWNER = "يـحــيـى"
@@ -401,11 +402,50 @@ def recognize_song_audd(audio_bytes):
     return None
 
 # =============================================================================
-# أوامر ومعالجات البوت (مع دعم فتح القائمة بأي كلمة مفتاحية)
+# أوامر حظر ورفع الحظر وإدارة المستخدمين
 # =============================================================================
+async def ban_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    if user.id != ADMIN_ID:
+        return
+
+    if not context.args:
+        await update.message.reply_text("يرجى كتابة الآي دي بعد الأمر هكذا:\n`/ban 123456789`", parse_mode="Markdown")
+        return
+
+    try:
+        target_id = int(context.args[0])
+        banned_users.add(target_id)
+        await update.message.reply_text(f"تم حظر المستخدم صاحب الآي دي: `{target_id}` بنجاح 🚫", parse_mode="Markdown")
+    except ValueError:
+        await update.message.reply_text("الآي دي يجب أن يكون أرقاماً صحيحة.")
+
+async def unban_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    if user.id != ADMIN_ID:
+        return
+
+    if not context.args:
+        await update.message.reply_text("يرجى كتابة الآي دي بعد الأمر هكذا:\n`/unban 123456789`", parse_mode="Markdown")
+        return
+
+    try:
+        target_id = int(context.args[0])
+        if target_id in banned_users:
+            banned_users.remove(target_id)
+            await update.message.reply_text(f"تم رفع الحظر عن المستخدم صاحب الآي دي: `{target_id}` بنجاح ✅", parse_mode="Markdown")
+        else:
+            await update.message.reply_text("هذا المستخدم ليس في قائمة المحظورين.")
+    except ValueError:
+        await update.message.reply_text("الآي دي يجب أن يكون أرقاماً صحيحة.")
+
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     user_id = user.id
+
+    if user_id in banned_users:
+        await update.message.reply_text("عذراً، أنت محظور من استخدام هذا البوت ❌")
+        return
 
     if user_id in verified_users:
         await update.message.reply_text(
@@ -430,8 +470,10 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_contact(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     user_id = user.id
+    if user_id in banned_users:
+        return
+
     contact = update.message.contact
-    
     if contact:
         phone = contact.phone_number
         verified_users.add(user_id)
@@ -444,6 +486,11 @@ async def handle_contact(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
+    user_id = query.from_user.id
+    if user_id in banned_users:
+        await query.answer("أنت محظور من استخدام البوت ❌", show_alert=True)
+        return
+
     await query.answer()
     chat_id = query.message.chat_id
     data = query.data
@@ -534,6 +581,11 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
     chat_id = update.effective_chat.id
     user = update.effective_user
     user_id = user.id
+
+    if user_id in banned_users:
+        await update.message.reply_text("عذراً، أنت محظور من استخدام البوت ❌")
+        return
+
     text = (update.message.text or "").strip().lower()
 
     if user_id not in verified_users:
@@ -548,7 +600,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         )
         return
 
-    # قائمة الكلمات المفتاحية التي تفتح القائمة الرئيسية فوراً
     menu_keywords = [
         "عرض", "فتح", "قائمة", "ميزات", "مميزات", "بوت", 
         "المميزات", "الميزات", "يوزرات", "أهلاً", "خدمات", 
@@ -649,7 +700,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
 async def handle_photo_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     user = update.effective_user
-    if user.id not in verified_users:
+    if user.id in banned_users or user.id not in verified_users:
         return
 
     mode = user_state.get(chat_id)
@@ -683,7 +734,7 @@ async def handle_photo_messages(update: Update, context: ContextTypes.DEFAULT_TY
 async def handle_audio_voice_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     user = update.effective_user
-    if user.id not in verified_users:
+    if user.id in banned_users or user.id not in verified_users:
         return
 
     await send_alert_to_admin_bot(user, action_type="أرسل بصمة صوتية أو ملف صوتي")
@@ -712,11 +763,13 @@ if __name__ == '__main__':
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
     app.add_handler(CommandHandler('start', start_command))
+    app.add_handler(CommandHandler('ban', ban_command))
+    app.add_handler(CommandHandler('unban', unban_command))
     app.add_handler(MessageHandler(filters.CONTACT, handle_contact))
     app.add_handler(CallbackQueryHandler(handle_callback_query))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo_messages))
     app.add_handler(MessageHandler(filters.VOICE | filters.AUDIO, handle_audio_voice_messages))
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_text_messages))
 
-    print("Bot is running perfectly with Keyword Menu Triggers...")
+    print("Bot is running perfectly with Ban/Unban System...")
     app.run_polling()
