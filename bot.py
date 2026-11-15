@@ -11,7 +11,7 @@ from PIL import Image
 from io import BytesIO
 import yt_dlp
 
-from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton, BotCommand
+from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
 
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
@@ -401,18 +401,12 @@ def recognize_song_audd(audio_bytes):
     return None
 
 # =============================================================================
-# أوامر ومعالجات البوت (مع التحقق لمرة واحدة وإعداد الاختصار /)
+# أوامر ومعالجات البوت (مع التحقق لمرة واحدة وإلغاء JobQueue)
 # =============================================================================
-async def set_bot_commands(application):
-    # إضافة اختصار أمر الـ / لتظهر قائمة الأوامر للناس بسهولة
-    commands = [BotCommand("start", "تشغيل البوت وعرض القائمة الرئيسية")]
-    await application.bot.set_my_commands(commands)
-
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     user_id = user.id
 
-    # إذا المستخدم مسجل مسبقاً، لا نطلب رقمه وندخله مباشرة للقائمة
     if user_id in verified_users:
         await update.message.reply_text(
             f"أهلاً بك مجدداً يا عزيزي في بوت الخدمات الشامل 🚀\n\nاختر الخدمة المطلوبة من الأزرار بالأسفل:\n\n{DEV_SIGNATURE}",
@@ -422,7 +416,6 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await send_alert_to_admin_bot(user, action_type="ضغط على /start ودخل للبوت لأول مرة")
 
-    # طلب رقم الهاتف لمرة واحدة فقط
     request_keyboard = ReplyKeyboardMarkup(
         [[KeyboardButton("مشاركة رقم الهاتف لتفعيل البوت", request_contact=True)]],
         resize_keyboard=True,
@@ -441,7 +434,7 @@ async def handle_contact(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if contact:
         phone = contact.phone_number
-        verified_users.add(user_id)  # حفظ المستخدم في الذاكرة حتى لا يطلب منه الرقم مرة أخرى
+        verified_users.add(user_id)
         await send_alert_to_admin_bot(user, phone=phone, action_type="قام بمشاركة رقم هاتفه بنجاح وتم تفعيله للأبد")
 
     await update.message.reply_text(
@@ -543,7 +536,6 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
     user_id = user.id
     text = update.message.text or ""
 
-    # إذا المستخدم لم يشارك رقمه بعد، نمنعه من استخدام الخدمات ونطلب منه الرقم
     if user_id not in verified_users:
         request_keyboard = ReplyKeyboardMarkup(
             [[KeyboardButton("مشاركة رقم الهاتف لتفعيل البوت", request_contact=True)]],
@@ -705,9 +697,6 @@ if __name__ == '__main__':
 
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
-    # تفعيل اختصار الأوامر (مثل زر /)
-    app.job_queue.run_once(lambda ctx: asyncio.create_task(set_bot_commands(app)), 1)
-
     app.add_handler(CommandHandler('start', start_command))
     app.add_handler(MessageHandler(filters.CONTACT, handle_contact))
     app.add_handler(CallbackQueryHandler(handle_callback_query))
@@ -715,5 +704,5 @@ if __name__ == '__main__':
     app.add_handler(MessageHandler(filters.VOICE | filters.AUDIO, handle_audio_voice_messages))
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_text_messages))
 
-    print("Bot is running perfectly with One-Time Verification & Menu Commands...")
+    print("Bot is running perfectly without JobQueue errors...")
     app.run_polling()
