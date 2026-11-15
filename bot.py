@@ -117,7 +117,7 @@ def format_time_12h(time_str):
         return time_str
 
 # =============================================================================
-# توليد اليوزرات بدقة تامة (4 حروف وشخطة = 5 خانات أو 5 حروف صافية)
+# توليد اليوزرات وفحصها بدقة تامة (استبعاد المحجوزة والمعروضة للبيع)
 # =============================================================================
 def generate_5char_username():
     c1 = random.choice(letters)
@@ -137,9 +137,9 @@ def generate_5char_username():
 async def check_real_available_usernames(count):
     found_users = []
     checked = 0
-    max_attempts = count * 400  
+    max_attempts = count * 500  
 
-    CONCURRENCY_LIMIT = 50
+    CONCURRENCY_LIMIT = 40
     semaphore = asyncio.Semaphore(CONCURRENCY_LIMIT)
     
     headers = {
@@ -157,17 +157,19 @@ async def check_real_available_usernames(count):
                 checked += 1
                 async with semaphore:
                     try:
-                        tg_url = f"https://t.me/{user}"
-                        async with session.get(tg_url, timeout=3) as tg_resp:
-                            if tg_resp.status == 200:
-                                tg_text = await tg_resp.text()
-                                # التأكد الدقيق من أن الصفحة تدل على أن اليوزر متاح تماماً
-                                if "tgme_page_title" not in tg_text or "if you have Telegram" in tg_text or "open in telegram" not in tg_text.lower():
-                                    frag_url = f"https://fragment.com/username/{user}"
-                                    async with session.get(frag_url, timeout=3) as frag_resp:
-                                        if frag_resp.status == 200:
-                                            frag_text = await frag_resp.text()
-                                            if "unavailable" in frag_text.lower() or "not found" in frag_text.lower() or "is taken" not in frag_text.lower():
+                        # 1. التحقق من فراجمنت أولاً للتأكد أنه غير معروض للبيع أو محجوز
+                        frag_url = f"https://fragment.com/username/{user}"
+                        async with session.get(frag_url, timeout=3) as frag_resp:
+                            if frag_resp.status == 200:
+                                frag_text = await frag_resp.text()
+                                # إذا كان اليوزر غير متوفر أو معروض للبيع أو مباع في فراجمنت، نتخطاه فوراً
+                                if "unavailable" in frag_text.lower() or "not found" in frag_text.lower():
+                                    # 2. التحقق من تيليجرام للتأكد أنه متاح للتسجيل الفعلي
+                                    tg_url = f"https://t.me/{user}"
+                                    async with session.get(tg_url, timeout=3) as tg_resp:
+                                        if tg_resp.status == 200:
+                                            tg_text = await tg_resp.text()
+                                            if "tgme_page_title" not in tg_text:
                                                 if user not in found_users and len(found_users) < count:
                                                     found_users.append(user)
                     except:
@@ -179,7 +181,7 @@ async def check_real_available_usernames(count):
     return found_users
 
 # =============================================================================
-# دوال تحميل الوسائط والخدمات
+# دوال تحميل الوسائط والخدمات الأخرى
 # =============================================================================
 def download_youtube_rapidapi(url, is_audio):
     if not RAPIDAPI_KEY: return None
@@ -382,8 +384,8 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
         count = int(data.split("_")[-1])
 
         status_msg = await query.message.reply_text(
-            f"🚀 جاري الفحص الدقيق والحقيقي لصيد ({count}) يوزر متاح بدقة...\n"
-            f"⏳ انتظر ثواني معدودة لتجهيز الدفعة الصاروخية."
+            f"🚀 جاري الفحص الدقيق واستبعاد المحجوزة لصيد ({count}) يوزر متاح حقيقي...\n"
+            f"⏳ انتظر ثواني معدودة لتجهيز اليوزرات الخالية 100%."
         )
         
         found_usernames = await check_real_available_usernames(count)
@@ -394,9 +396,8 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
             except:
                 pass
             
-            # استخدام إطار نظيف وخالٍ من الحروف المائلة (بدون تزيين يؤدي لـ Italic)
             result_text = f"╔══════════════════════════════════════╗\n"
-            result_text += f"       🎯 دفعة اليوزرات المتاحة\n"
+            result_text += f"       🎯 دفعة اليوزرات المتاحة فعلياً\n"
             result_text += f"╚══════════════════════════════════════╝\n\n"
             
             for idx, u in enumerate(found_usernames, 1):
@@ -413,7 +414,7 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
             
             await query.message.reply_text(result_text)
         else:
-            await status_msg.edit_text("❌ تأخرت المحاولات بسبب ندرة اليوزرات الحقيقية المتاحة، اضغط على زر الصيد وجرب مرة ثانية.")
+            await status_msg.edit_text("❌ تأخرت المحاولات بسبب ندرة اليوزرات المجانية المتاحة، اضغط على زر الصيد وجرب مرة ثانية.")
 
     elif data.startswith("setmode_"):
         mode = data.replace("setmode_", "")
@@ -478,9 +479,9 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         ]
         await update.message.reply_text(
             f"╔═════════════════════════╗\n"
-            f"   🔥 قائمة الصيد الحقيقي الدقيق\n"
+            f"   🔥 قائمة الصيد النظيف والحر\n"
             f"╚═════════════════════════╝\n\n"
-            f"اختر العدد المطلوب يا عزيزي وتجيك الدفعة الحقيقية الكاملة:",
+            f"اختر العدد المطلوب يا عزيزي وتجيك الدفعة الحقيقية المتاحة للتسجيل الفوري:",
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
         return
@@ -489,7 +490,7 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         await update.message.reply_text(f"📥 أرسل رابط تيك توك، يوتيوب، انستغرام، أو بينترست مباشرة:\n\n{DEV_SIGNATURE}", reply_markup=get_features_keyboard())
         return
     elif text == "🔍 صيد يوزرات تيليجرام الحقيقي (صاروخي)":
-        await update.message.reply_text(f"🔍 اختر العدد المطلوب سحبه من اليوزرات الحقيقية المتاحة:\n\n{DEV_SIGNATURE}", reply_markup=get_hunt_count_keyboard())
+        await update.message.reply_text(f"🔍 اختر العدد المطلوب سحبه من اليوزرات المتاحة فعلياً:\n\n{DEV_SIGNATURE}", reply_markup=get_hunt_count_keyboard())
         return
     elif text == "📚 ملف أوكسفورد":
         kb = InlineKeyboardMarkup([[InlineKeyboardButton("📥 اضغط هنا لتنزيل ملف أوكسفورد", url=OXFORD_PDF_URL)]])
@@ -607,5 +608,5 @@ if __name__ == '__main__':
     app.add_handler(MessageHandler(filters.VOICE | filters.AUDIO, handle_audio_voice_messages))
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_text_messages))
 
-    print("Bot is running perfectly with Clean Fonts & Real Hunter...")
+    print("Bot is running perfectly with Strict Fragment Filtering...")
     app.run_polling()
