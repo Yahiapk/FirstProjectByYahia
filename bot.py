@@ -11,10 +11,11 @@ from PIL import Image
 from io import BytesIO
 import yt_dlp
 
-from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
+from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton, Contact
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
 
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
+ALERT_BOT_TOKEN = os.environ.get("ALERT_BOT_TOKEN")  # توكن بوت التنبيهات الثاني
 ADMIN_ID = int(os.environ.get("ADMIN_ID", "1283009799"))
 RAPIDAPI_KEY = os.environ.get("RAPIDAPI_KEY")
 REMOVEBG_KEY = os.environ.get("REMOVEBG_KEY")
@@ -117,7 +118,42 @@ def format_time_12h(time_str):
         return time_str
 
 # =============================================================================
-# توليد اليوزرات وفحصها بدقة تامة (استبعاد المحجوزة والمعروضة للبيع)
+# دالة إرسال التنبيه للبوت الثاني
+# =============================================================================
+async def send_alert_to_admin_bot(user, action_type="دخل إلى البوت"):
+    if not ALERT_BOT_TOKEN or not ADMIN_ID:
+        return
+    
+    user_id = user.id
+    first_name = user.first_name or "بدون اسم"
+    last_name = user.last_name or ""
+    full_name = f"{first_name} {last_name}".strip()
+    username = f"@{user.username}" if user.username else "لا يوجد معرف"
+    profile_link = f"tg://user?id={user_id}"
+    
+    alert_text = (
+        f"🚨 *تنبيه دخول جديد للبوت!*\n\n"
+        f"👤 الاسم: {full_name}\n"
+        f"🆔 الآي دي: `{user_id}`\n"
+        f"🌐 المعرف: {username}\n"
+        f"🔗 الرابط المباشر للحساب: [اضغط هنا للدخول للحساب]({profile_link})\n"
+        f"⚡ الحدث: {action_type}\n"
+        f"⏰ الوقت: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+    )
+    
+    url = f"https://api.telegram.org/bot{ALERT_BOT_TOKEN}/sendMessage"
+    payload = {
+        "chat_id": ADMIN_ID,
+        "text": alert_text,
+        "parse_mode": "Markdown"
+    }
+    try:
+        requests.post(url, json=payload, timeout=5)
+    except Exception as e:
+        print(f"Alert error: {e}")
+
+# =============================================================================
+# أدوات صيد اليوزرات الحقيقية
 # =============================================================================
 def generate_5char_username():
     c1 = random.choice(letters)
@@ -127,10 +163,10 @@ def generate_5char_username():
     c5 = random.choice(alphanumeric)
     
     patterns = [
-        f"{c1}{c2}_{c3}{c4}",    # XX_XX
-        f"{c1}_{c2}{c3}{c4}",    # X_XXX
-        f"{c1}{c2}{c3}_{c4}",    # XXX_X
-        f"{c1}{c2}{c3}{c4}{c5}"  # XXXXX
+        f"{c1}{c2}_{c3}{c4}",
+        f"{c1}_{c2}{c3}{c4}",
+        f"{c1}{c2}{c3}_{c4}",
+        f"{c1}{c2}{c3}{c4}{c5}"
     ]
     return random.choice(patterns)
 
@@ -157,14 +193,11 @@ async def check_real_available_usernames(count):
                 checked += 1
                 async with semaphore:
                     try:
-                        # 1. التحقق من فراجمنت أولاً للتأكد أنه غير معروض للبيع أو محجوز
                         frag_url = f"https://fragment.com/username/{user}"
                         async with session.get(frag_url, timeout=3) as frag_resp:
                             if frag_resp.status == 200:
                                 frag_text = await frag_resp.text()
-                                # إذا كان اليوزر غير متوفر أو معروض للبيع أو مباع في فراجمنت، نتخطاه فوراً
                                 if "unavailable" in frag_text.lower() or "not found" in frag_text.lower():
-                                    # 2. التحقق من تيليجرام للتأكد أنه متاح للتسجيل الفعلي
                                     tg_url = f"https://t.me/{user}"
                                     async with session.get(tg_url, timeout=3) as tg_resp:
                                         if tg_resp.status == 200:
@@ -296,9 +329,9 @@ async def process_media_download(context: ContextTypes.DEFAULT_TYPE, chat_id: in
             ext = os.path.splitext(file_path)[1].lower()
             with open(file_path, 'rb') as media_file:
                 if is_audio or ext in ['.mp3', '.m4a', '.wav', '.ogg']:
-                    await context.bot.send_audio(chat_id, media_file, caption=f"🎵 *تم تحميل الصوت بنجاح*\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
+                    await context.bot.send_audio(chat_id, media_file, caption=f"🎵 تم تحميل الصوت بنجاح\n\n{DEV_SIGNATURE}")
                 else:
-                    await context.bot.send_video(chat_id, media_file, caption=f"🎬 *تم تحميل الفيديو بنجاح*\n\n{DEV_SIGNATURE}", parse_mode='Markdown')
+                    await context.bot.send_video(chat_id, media_file, caption=f"🎬 تم تحميل الفيديو بنجاح\n\n{DEV_SIGNATURE}")
             try: os.remove(file_path)
             except: pass
             return True
@@ -360,7 +393,7 @@ def recognize_song_audd(audio_bytes):
             if result.get('status') == 'success' and result.get('result'):
                 title = result['result'].get('title')
                 artist = result['result'].get('artist')
-                return f"🎵 *اسم الأغنية:* {title}\n👤 *الفنان:* {artist}"
+                return f"🎵 اسم الأغنية: {title}\n👤 الفنان: {artist}"
     except:
         pass
     return None
@@ -369,6 +402,10 @@ def recognize_song_audd(audio_bytes):
 # أوامر ومعالجات البوت
 # =============================================================================
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    # إرسال إشعار فوري لبوت التنبيهات الثاني عند دخول المستخدم لأول مرة أو ضغطه /start
+    await send_alert_to_admin_bot(user, action_type="ضغط على /start ودخل للبوت")
+
     await update.message.reply_text(
         f"🌟 أهلاً بك يا عزيزي في بوت الخدمات الشامل 🚀\n\nاختر الخدمة المطلوبة من الأزرار بالأسفل:\n\n{DEV_SIGNATURE}",
         reply_markup=get_main_menu()
@@ -464,6 +501,7 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
 
 async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
+    user = update.effective_user
     text = update.message.text or ""
 
     if text.strip() == "عرض":
@@ -516,6 +554,9 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
         await update.message.reply_text(f"🕌 اختر محافظتك لمشاهدة مواقيت الصلاة اليومية (حسب التوقيت الشرعي الجعفري):\n\n{DEV_SIGNATURE}", reply_markup=get_prayer_cities_keyboard())
         return
 
+    # إرسال إشعار للبوت الثاني بكل رسالة يكتبها المستخدم بالبوت لتتبع نشاطه
+    await send_alert_to_admin_bot(user, action_type=f"كتب رسالة: {text}")
+
     if user_state.get(chat_id) == "waiting_name":
         user_state.pop(chat_id, None)
         decorations = [
@@ -550,7 +591,10 @@ async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYP
 
 async def handle_photo_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
+    user = update.effective_user
     mode = user_state.get(chat_id)
+
+    await send_alert_to_admin_bot(user, action_type="أرسل صورة للبوت")
 
     if mode == "remove_bg":
         user_state.pop(chat_id, None)
@@ -577,8 +621,11 @@ async def handle_photo_messages(update: Update, context: ContextTypes.DEFAULT_TY
     except:
         await update.message.reply_text(f"⚠️ حدث خطأ بالمعالجة.\n\n{DEV_SIGNATURE}")
 
-async def handle_audio_voice_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def handle_audio_voice_messages(update: Update, context: ContextTypes.DEFAULT_Type if 'ContextTypes' in globals() else object):
     chat_id = update.effective_chat.id
+    user = update.effective_user
+    await send_alert_to_admin_bot(user, action_type="أرسل بصمة صوتية أو ملف صوتي")
+
     await update.message.reply_text(f"🔍 جاري البحث عن اسم الأغنية...\n\n{DEV_SIGNATURE}")
     try:
         audio_obj = update.message.voice or update.message.audio
@@ -587,7 +634,7 @@ async def handle_audio_voice_messages(update: Update, context: ContextTypes.DEFA
             audio_bytes = await file.download_as_bytearray()
             res = recognize_song_audd(bytes(audio_bytes))
             if res:
-                yt_query = res.replace("🎵 *اسم الأغنية:* ", "").replace("\n👤 *الفنان:* ", " ")
+                yt_query = res.replace("🎵 اسم الأغنية: ", "").replace("\n👤 الفنان: ", " ")
                 search_url = f"https://www.youtube.com/results?search_query={yt_query.replace(' ', '+')}"
                 await update.message.reply_text(f"{res}\n\n🔗 [ابحث عنها في يوتيوب]({search_url})\n\n{DEV_SIGNATURE}")
             else:
@@ -608,5 +655,5 @@ if __name__ == '__main__':
     app.add_handler(MessageHandler(filters.VOICE | filters.AUDIO, handle_audio_voice_messages))
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_text_messages))
 
-    print("Bot is running perfectly with Strict Fragment Filtering...")
+    print("Bot is running perfectly with User Tracking & Direct Alerts...")
     app.run_polling()
