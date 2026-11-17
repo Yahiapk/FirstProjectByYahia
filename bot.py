@@ -25,7 +25,7 @@ OXFORD_PDF_URL = "https://drive.google.com/uc?export=download&id=1GqE_PbV4GMUMo6
 user_requests = {}
 user_selected_mode = {}
 user_state = {}
-banned_users = set()  # ذاكرة لحفظ المستخدمين المحظورين من قبل المطور
+banned_users = set()
 
 # حقوق المطور
 OWNER = "يـحــيـى"
@@ -59,25 +59,6 @@ def get_features_keyboard():
         [InlineKeyboardButton("تنزيل أغنية يوتيوب", callback_data="setmode_yt_audio")],
         [InlineKeyboardButton("تنزيل فيديو/صورة انستغرام", callback_data="setmode_insta_video")],
         [InlineKeyboardButton("تنزيل فيديو بينترست", callback_data="setmode_pin")]
-    ]
-    return InlineKeyboardMarkup(keyboard)
-
-def get_video_quality_keyboard():
-    keyboard = [
-        [InlineKeyboardButton("360p", callback_data="q_360"), InlineKeyboardButton("720p HD", callback_data="q_720")],
-        [InlineKeyboardButton("1080p Full HD", callback_data="q_1080"), InlineKeyboardButton("أفضل جودة متاحة", callback_data="q_best")]
-    ]
-    return InlineKeyboardMarkup(keyboard)
-
-def get_audio_quality_keyboard():
-    keyboard = [
-        [InlineKeyboardButton("128 kbps", callback_data="q_audio_128"), InlineKeyboardButton("320 kbps HQ", callback_data="q_audio_320")]
-    ]
-    return InlineKeyboardMarkup(keyboard)
-
-def get_media_type_keyboard():
-    keyboard = [
-        [InlineKeyboardButton("تنزيل فيديو", callback_data="type_video"), InlineKeyboardButton("تنزيل صوت", callback_data="type_audio")]
     ]
     return InlineKeyboardMarkup(keyboard)
 
@@ -119,7 +100,7 @@ def format_time_12h(time_str):
         return time_str
 
 # =============================================================================
-# دالة إرسال التنبيه للبوت الثاني
+# دالة إرسال التنبيهات واللوغز (Logs) للبوت الثاني
 # =============================================================================
 async def send_alert_to_admin_bot(user, action_type="دخل إلى البوت"):
     if not ALERT_BOT_TOKEN or not ADMIN_ID:
@@ -133,13 +114,13 @@ async def send_alert_to_admin_bot(user, action_type="دخل إلى البوت"):
     profile_link = f"tg://user?id={user_id}"
     
     alert_text = (
-        f"تنبيه نشاط جديد!\n\n"
-        f"الاسم: {full_name}\n"
-        f"الآي دي: {user_id}\n"
-        f"المعرف: {username}\n"
-        f"الرابط المباشر: {profile_link}\n"
-        f"الحدث: {action_type}\n"
-        f"الوقت: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        f"📊 [سجل نشاط / Log]\n\n"
+        f"👤 الاسم: {full_name}\n"
+        f"🆔 الآي دي: {user_id}\n"
+        f"🔗 المعرف: {username}\n"
+        f"📌 الرابط: {profile_link}\n"
+        f"⚡ الحدث / الرسالة: {action_type}\n"
+        f"⏰ الوقت: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
     )
     
     url = f"https://api.telegram.org/bot{ALERT_BOT_TOKEN}/sendMessage"
@@ -214,82 +195,11 @@ async def check_real_available_usernames(count):
     return found_users
 
 # =============================================================================
-# دوال تحميل الوسائط والخدمات الأخرى
+# دوال تحميل الوسائط المحدثة والقوية (تيكتوك، يوتيوب، انستا، بينترست)
 # =============================================================================
-def download_youtube_rapidapi(url, is_audio):
-    if not RAPIDAPI_KEY: return None
+def download_media_direct(url, is_audio):
     filename = f"dl_{int(time.time())}_{random.randint(1000,9999)}"
-    ext = "mp3" if is_audio else "mp4"
-    file_path = f"{filename}.{ext}"
-
-    api_url = "https://youtube-media-downloader.p.rapidapi.com/v2/video/details"
-    headers = {"x-rapidapi-key": RAPIDAPI_KEY, "x-rapidapi-host": "youtube-media-downloader.p.rapidapi.com"}
     
-    video_id_match = re.search(r'(?:v=|\/|shorts\/)([0-9A-Za-z_-]{11})', url)
-    if not video_id_match: return None
-    video_id = video_id_match.group(1)
-
-    try:
-        res = requests.get(api_url, headers=headers, params={"videoId": video_id}, timeout=10)
-        if res.status_code == 200:
-            data = res.json()
-            download_link = None
-            if is_audio:
-                audios = data.get("audios", {}).get("items", [])
-                if audios: download_link = audios[0].get("url")
-            else:
-                videos = data.get("videos", {}).get("items", [])
-                if videos: download_link = videos[0].get("url")
-
-            if download_link:
-                r = requests.get(download_link, stream=True, timeout=120)
-                if r.status_code == 200:
-                    with open(file_path, 'wb') as f:
-                        for chunk in r.iter_content(chunk_size=32768):
-                            f.write(chunk)
-                    return file_path
-    except Exception as e:
-        print(f"API Download Error: {e}")
-    return None
-
-def download_pinterest_scraping(url):
-    filename = f"dl_{int(time.time())}_{random.randint(1000,9999)}.mp4"
-    try:
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8"
-        }
-        res = requests.get(url, headers=headers, allow_redirects=True, timeout=15)
-        html_content = res.text
-
-        video_urls = re.findall(r'https?://[^\s<>"]+?\.(?:mp4)', html_content)
-        if not video_urls:
-            video_urls = re.findall(r'"url"\s*:\s*"(https?://[^"]+?\.(?:mp4)[^"]*)"', html_content)
-
-        if video_urls:
-            direct_video_url = video_urls[0].replace(r'\u0026', '&')
-            vid_data = requests.get(direct_video_url, headers=headers, stream=True, timeout=30)
-            if vid_data.status_code == 200:
-                with open(filename, 'wb') as f:
-                    for chunk in vid_data.iter_content(chunk_size=32768):
-                        f.write(chunk)
-                return filename
-    except Exception as e:
-        print(f"Pinterest scraping error: {e}")
-    return None
-
-def download_media_direct(url, is_audio, quality="best"):
-    if "youtube.com" in url or "youtu.be" in url:
-        yt_file = download_youtube_rapidapi(url, is_audio)
-        if yt_file and os.path.exists(yt_file): 
-            return yt_file
-
-    if "pin.it" in url or "pinterest.com" in url:
-        pin_file = download_pinterest_scraping(url)
-        if pin_file and os.path.exists(pin_file):
-            return pin_file
-
-    filename = f"dl_{int(time.time())}_{random.randint(1000,9999)}"
     ydl_opts = {
         'outtmpl': f'{filename}.%(ext)s',
         'quiet': True,
@@ -301,44 +211,53 @@ def download_media_direct(url, is_audio, quality="best"):
 
     if is_audio:
         ydl_opts['format'] = 'bestaudio/best'
-        ydl_opts['postprocessors'] = [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3', 'preferredquality': '192'}]
+        ydl_opts['postprocessors'] = [{
+            'key': 'FFmpegExtractAudio',
+            'preferredcodec': 'mp3',
+            'preferredquality': '192',
+        }]
     else:
-        ydl_opts['format'] = 'bestvideo+bestaudio/best'
+        ydl_opts['format'] = 'bestvideo+bestaudio/best/best'
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
-            if 'entries' in info and len(info['entries']) > 0: 
+            if 'entries' in info and len(info['entries']) > 0:
                 info = info['entries'][0]
             filename_actual = ydl.prepare_filename(info)
-            if os.path.exists(filename_actual): 
+            if os.path.exists(filename_actual):
                 return filename_actual
 
             base = os.path.splitext(filename_actual)[0]
             for ext in ['.mp4', '.mkv', '.webm', '.mp3', '.m4a']:
-                if os.path.exists(base + ext): 
+                if os.path.exists(base + ext):
                     return base + ext
     except Exception as e:
         print(f"yt-dlp error: {e}")
     return None
 
-async def process_media_download(context: ContextTypes.DEFAULT_TYPE, chat_id: int, url: str, is_audio: bool, quality: str = "best"):
+async def process_media_download(context: ContextTypes.DEFAULT_TYPE, chat_id: int, url: str, is_audio: bool):
     try:
-        file_path = await asyncio.to_thread(download_media_direct, url, is_audio, quality)
+        file_path = await asyncio.to_thread(download_media_direct, url, is_audio)
         if file_path and os.path.exists(file_path):
             ext = os.path.splitext(file_path)[1].lower()
             with open(file_path, 'rb') as media_file:
                 if is_audio or ext in ['.mp3', '.m4a', '.wav', '.ogg']:
-                    await context.bot.send_audio(chat_id, media_file, caption=f"تم تحميل الصوت بنجاح\n\n{DEV_SIGNATURE}")
+                    await context.bot.send_audio(chat_id, media_file, caption=f"تم تحميل الصوت بنجاح 🎵\n\n{DEV_SIGNATURE}")
                 else:
-                    await context.bot.send_video(chat_id, media_file, caption=f"تم تحميل الفيديو بنجاح\n\n{DEV_SIGNATURE}")
-            try: os.remove(file_path)
-            except: pass
+                    await context.bot.send_video(chat_id, media_file, caption=f"تم تحميل الفيديو بنجاح 🎬\n\n{DEV_SIGNATURE}")
+            try: 
+                os.remove(file_path)
+            except: 
+                pass
             return True
     except Exception as e:
         print(f"Download Error: {e}")
     return False
 
+# =============================================================================
+# أدوات الصور والصوتيات الأخرى
+# =============================================================================
 def convert_image_to_ascii(image_bytes):
     try:
         img = Image.open(BytesIO(image_bytes))
@@ -399,55 +318,53 @@ def recognize_song_audd(audio_bytes):
     return None
 
 # =============================================================================
-# دالة زخرفة وتغيير خطوط الأسماء (عربي وإنجليزي) بدون ماركداون لتجنب الأخطاء
+# دالة زخرفة الخطوط الصحيحة (عربي وإنجليزي)
 # =============================================================================
 def decorate_text_fonts(text):
-    en_bold = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
-                            "𝐚𝐛𝐜𝐝𝐞𝐟𝐠𝐡𝐢𝑗𝑘𝑙𝐦𝐧𝑜𝑝𝐪𝑟𝐬𝑡𝑢𝑣𝑤𝑥𝑦𝑧𝐀𝐁𝐂𝐃𝐄𝐅𝐆𝐇𝐈𝉉𝐊𝐋𝐌𝐍𝐎𝐏𝐐𝐑𝐒𝐓𝐔𝐕𝐖𝐗𝐘𝐙𝟎𝟏𝟐𝟑𝟒𝟓𝟔𝟕𝟖𝟗")
-    en_sans = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
-                            "𝗮𝗯𝗰𝗱𝗲𝗳𝗴𝗵𝗶𝗷𝗸𝗹𝗺𝗻𝗼𝗽𝗾𝗿𝘀𝘁𝘂𝘃𝘄𝘅𝘆𝘇𝗔𝗕𝗖𝗗𝗘𝗙𝗚𝗛𝗜𝗝𝗞𝗟𝗠𝗡𝗢𝗣𝗤𝗥𝗦𝗧𝗨𝗩𝗪𝗫𝗬𝗭𝟬𝟭𝟮𝟯𝟰𝟱𝟲𝟳𝟴𝟵")
-    en_script = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
-                              "𝒶𝒷𝒸𝒹ℯ𝒻ℊ𝒽𝒾𝒿𝓀𝓁𝓂𝓃ℴ𝓅𝓆𝓇𝓈𝓉𝓊𝓋𝓌𝓍𝓎𝓏𝒜ℬ𝒞𝒟ℰℱ𝒢ℋℐ𝒥𝒦ℒℳ𝒩𝒪𝒫𝒬ℛ𝒮𝒯𝒰𝒱𝒲𝒳𝒴𝒵")
-    en_mono = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
-                            "𝚊𝚋𝚌𝚍𝚎𝚏𝚐𝚑𝚒𝚓𝚔𝚕𝚖𝚗𝚘𝚙𝚚𝚛𝚜𝚝𝚞𝚟𝚠🇽𝚢𝚣𝙰𝙱𝙲𝙳𝙴𝙵𝙶𝙷𝙸𝙹𝙺𝙻𝙼𝙽𝙾𝙿𝚀𝚁𝚂𝚃𝚄𝚅𝚆𝚇𝚈𝚉𝟶𝟷𝟸𝟹𝟺𝟻𝟼𝟽𝟾𝟿")
-    en_bubble = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
-                            "ⓐⓑⓒⓓⓔⓕⓖⓗⓘⓙⓚⓛⓜⓝⓞⓟⓠⓡⓢⓣⓤⓥⓦⓧⓨⓩⒶⒷⒸⒹⒺⒻGⒽⒾⒿⓀⓁⓂⓃⓄⓅⓆⓇⓈⓉⓊⓋⓌⓍⓎⓏ⓪①②③④⑤⑥⑦⑧⑨")
+    # جدول تحويل مباشر للحروف الإنجليزية بخطوط أنيقة
+    bold_map = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                             "𝐚𝐛𝐜𝐝𝐞𝐟𝐠𝐡𝐢𝑗𝑘𝑙𝐦𝐧𝑜𝑝𝐪𝑟𝐬𝑡𝑢𝑣𝑤𝑥𝑦𝑧𝐀𝐁𝐂𝐃𝐄𝐅𝐆𝐇𝐈𝐉𝐊𝐋𝐌𝐍𝐎𝐏𝐐𝐑𝐒𝐓𝐔𝐕𝐖𝐗𝐘𝐙𝟎𝟏𝟐𝟑𝟒𝟓𝟔𝟕𝟖𝟗")
+    sans_map = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                             "𝗮𝗯𝗰𝗱𝚎𝗳𝗴𝗵𝗶𝗷𝗸𝗹𝗺𝗻𝗼𝗽𝗾𝗿𝘀𝘁𝘂𝘃𝘄𝘅𝘆𝘇𝗔𝗕𝗖𝗗𝗘𝗙𝗚𝗛𝗜𝗝𝗞𝗟𝗠𝗡𝗢𝗣𝗤𝗥𝗦𝗧𝗨𝗩𝗪𝗫𝗬𝗭𝟬𝟭𝟮𝟯𝟰𝟱𝟲𝟳𝟴𝟵")
+    script_map = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
+                               "𝒶𝒷𝒸𝒹ℯ𝒻ℊ𝒽𝒾𝒿𝓀𝓁𝓂𝓃ℴ𝓅𝓆𝓇𝓈𝓉𝓊𝓋𝓌𝓍𝓎𝓏𝒜ℬ𝒞𝒟ℰℱ𝒢ℋℐ𝒥𝒦ℒℳ𝒩𝒪𝒫𝒬ℛ𝒮𝒯𝒰𝒱𝒲𝒳𝒴𝒵")
+    mono_map = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                             "𝚊𝚋𝚌𝚍𝚎𝚏𝚐𝚑𝚒𝚓𝚔𝚕𝚖𝚗𝚘𝚙𝚚𝚛𝚜𝚝𝚞𝚟𝚠🇽𝚢𝚣𝙰𝙱𝙲𝙳𝙴𝙵𝙶𝙷𝙸𝙹𝙺𝙻𝙼𝙽𝙾𝙿𝚀𝚁𝚂𝚃𝚄𝚅𝚆𝚇𝚈𝚉𝟶𝟷𝟸𝟹𝟺𝟻𝟼𝟽𝟾𝟿")
+    bubble_map = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                               "ⓐⓑⓒⓓⓔⓕⓖⓗⓘⓙⓚⓛⓜⓝⓞⓟⓠⓡⓢⓣⓤⓥⓦⓧⓨⓩⒶⒷⒸⒹⒺⒻⒼⒽⒾⒿⓀⓁⓂⓃⓄⓅⓆⓇⓈⓉⓊⓋⓌⓍⓎⓏ⓪①②③④⑤⑥⑦⑧⑨")
 
-    ar_fancy = (text.replace("ا", "آ").replace("ب", "بّ").replace("د", "دّ")
-                .replace("ر", "رّ").replace("س", "سۦ").replace("م", "مُ"))
+    ar_fancy = text.replace("ا", "آ").replace("ب", "بّ").replace("د", "دّ").replace("ر", "رّ").replace("س", "سۦ").replace("م", "مُ")
     ar_spaced = " ".join(list(text))
 
-    res_en_bold = text.translate(en_bold)
-    res_en_sans = text.translate(en_sans)
-    res_en_script = text.translate(en_script)
-    res_en_mono = text.translate(en_mono)
-    res_en_bubble = text.translate(en_bubble)
+    res_bold = text.translate(bold_map)
+    res_sans = text.translate(sans_map)
+    res_script = text.translate(script_map)
+    res_mono = text.translate(mono_map)
+    res_bubble = text.translate(bubble_map)
 
     output = (
         f"✒️ أنواع الخطوط وزخرفة الاسم لـ ({text}):\n\n"
-        f"1️⃣ خط عريض (Bold):\n{res_en_bold}\n\n"
-        f"2️⃣ خط حديث (Sans):\n{res_en_sans}\n\n"
-        f"3️⃣ خط مائل فخم (Script):\n{res_en_script}\n\n"
-        f"4️⃣ خط الآلة الكاتبة (Mono):\n{res_en_mono}\n\n"
-        f"5️⃣ خط الدوائر (Bubble):\n{res_en_bubble}\n\n"
-        f"6️⃣ زخرفة عربية مميزة:\n{ar_fancy}\n\n"
-        f"7️⃣ حروف عربية مباعدة:\n{ar_spaced}\n\n"
+        f"1️⃣ خط عريض (Bold):\n{res_bold}\n\n"
+        f"2️⃣ خط حديث (Sans):\n{res_sans}\n\n"
+        f"3️⃣ خط مائل فخم (Script):\n{res_script}\n\n"
+        f"4️⃣ خط الآلة الكاتبة (Mono):\n{res_mono}\n\n"
+        f"5️⃣ خط الدوائر (Bubble):\n{res_bubble}\n\n"
+        f"6️⃣ زخرفة مميزة:\n{ar_fancy}\n\n"
+        f"7️⃣ حروف مباعدة:\n{ar_spaced}\n\n"
         f"{DEV_SIGNATURE}"
     )
     return output
 
 # =============================================================================
-# أوامر حظر ورفع الحظر وإدارة المستخدمين
+# أوامر حظر ورفع الحظر
 # =============================================================================
 async def ban_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     if user.id != ADMIN_ID:
         return
-
     if not context.args:
         await update.message.reply_text("يرجى كتابة الآي دي بعد الأمر هكذا:\n`/ban 123456789`", parse_mode="Markdown")
         return
-
     try:
         target_id = int(context.args[0])
         banned_users.add(target_id)
@@ -459,11 +376,9 @@ async def unban_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     if user.id != ADMIN_ID:
         return
-
     if not context.args:
         await update.message.reply_text("يرجى كتابة الآي دي بعد الأمر هكذا:\n`/unban 123456789`", parse_mode="Markdown")
         return
-
     try:
         target_id = int(context.args[0])
         if target_id in banned_users:
@@ -482,7 +397,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("عذراً، أنت محظور من استخدام هذا البوت ❌")
         return
 
-    await send_alert_to_admin_bot(user, action_type="دخل إلى البوت وتم ترحيبه")
+    await send_alert_to_admin_bot(user, action_type="ضغط على /start ودخل إلى البوت")
 
     await update.message.reply_text(
         f"أهلاً بك يا عزيزي في بوت الخدمات الشامل 🚀\n\nاختر الخدمة المطلوبة من الأزرار بالأسفل:\n\n{DEV_SIGNATURE}",
@@ -493,7 +408,7 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
     query = update.callback_query
     user_id = query.from_user.id
     if user_id in banned_users:
-        await query.answer("أنت محظور من استخدام هذا البوت ❌", show_alert=True)
+        await query.answer("أنت محظور من استخدام البوت ❌", show_alert=True)
         return
 
     await query.answer()
@@ -564,6 +479,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     text = update.message.text
+
+    # إرسال لوغز لكل حركة أو رسالة يكتبها المستخدم للبوت الثاني فوراً
+    if text:
+        await send_alert_to_admin_bot(user, action_type=f"كتب نصاً: {text}")
+    elif update.message.photo:
+        await send_alert_to_admin_bot(user, action_type="أرسل صورة")
+    elif update.message.audio or update.message.voice:
+        await send_alert_to_admin_bot(user, action_type="أرسل بصمة أو ملف صوتي")
+
     if not text:
         if update.message.photo:
             photo = update.message.photo[-1]
@@ -613,7 +537,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # الكلمات المفتاحية لفتح البوت وإظهار القائمة الرئيسية
     welcome_keywords = ["فتح", "بوت", "خدمات", "استخدام", "عرض", "تنزيل", "افتح", "شون"]
     if text in welcome_keywords:
-        await send_alert_to_admin_bot(user, action_type=f"كتب كلمة ({text}) وفتح القائمة")
         await update.message.reply_text(
             f"أهلاً بك يا عزيزي في بوت الخدمات الشامل 🚀\n\nاختر الخدمة المطلوبة من الأزرار بالأسفل:\n\n{DEV_SIGNATURE}",
             reply_markup=get_main_menu()
@@ -649,6 +572,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("أرسل الصورة الآن لكي أحولها إلى رسم بالحروف والنقاط (ASCII Art) 🎨")
 
     else:
+        # إذا كان النص رابطاً للتحميل
         if text.startswith("http://") or text.startswith("https://"):
             mode = user_selected_mode.get(user_id, "yt_video")
             is_audio = "audio" in mode
@@ -661,6 +585,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except:
                 pass
         else:
+            # معالجة زخرفة الأسماء
             if user_state.get(user_id) == "font_decoration":
                 res = decorate_text_fonts(text)
                 await update.message.reply_text(res)
