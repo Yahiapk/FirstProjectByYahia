@@ -100,7 +100,7 @@ def format_time_12h(time_str):
         return time_str
 
 # =============================================================================
-# دالة إرسال التنبيهات واللوغز (Logs) للبوت الثاني
+# دالة إرسال التنبيهات واللوغز للبوت الثاني
 # =============================================================================
 async def send_alert_to_admin_bot(user, action_type="دخل إلى البوت"):
     if not ALERT_BOT_TOKEN or not ADMIN_ID:
@@ -195,11 +195,86 @@ async def check_real_available_usernames(count):
     return found_users
 
 # =============================================================================
-# دوال تحميل الوسائط المحدثة والقوية (تيكتوك، يوتيوب، انستا، بينترست)
+# دوال التنزيل القوية (RapidAPI يوتيوب + yt-dlp للباقي)
 # =============================================================================
-def download_media_direct(url, is_audio):
+def download_youtube_rapidapi(url, is_audio):
+    if not RAPIDAPI_KEY: 
+        return None
     filename = f"dl_{int(time.time())}_{random.randint(1000,9999)}"
+    ext = "mp3" if is_audio else "mp4"
+    file_path = f"{filename}.{ext}"
+
+    api_url = "https://youtube-media-downloader.p.rapidapi.com/v2/video/details"
+    headers = {"x-rapidapi-key": RAPIDAPI_KEY, "x-rapidapi-host": "youtube-media-downloader.p.rapidapi.com"}
     
+    video_id_match = re.search(r'(?:v=|\/|shorts\/)([0-9A-Za-z_-]{11})', url)
+    if not video_id_match: 
+        return None
+    video_id = video_id_match.group(1)
+
+    try:
+        res = requests.get(api_url, headers=headers, params={"videoId": video_id}, timeout=10)
+        if res.status_code == 200:
+            data = res.json()
+            download_link = None
+            if is_audio:
+                audios = data.get("audios", {}).get("items", [])
+                if audios: 
+                    download_link = audios[0].get("url")
+            else:
+                videos = data.get("videos", {}).get("items", [])
+                if videos: 
+                    download_link = videos[0].get("url")
+
+            if download_link:
+                r = requests.get(download_link, stream=True, timeout=120)
+                if r.status_code == 200:
+                    with open(file_path, 'wb') as f:
+                        for chunk in r.iter_content(chunk_size=32768):
+                            f.write(chunk)
+                    return file_path
+    except Exception as e:
+        print(f"API Download Error: {e}")
+    return None
+
+def download_pinterest_scraping(url):
+    filename = f"dl_{int(time.time())}_{random.randint(1000,9999)}.mp4"
+    try:
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8"
+        }
+        res = requests.get(url, headers=headers, allow_redirects=True, timeout=15)
+        html_content = res.text
+
+        video_urls = re.findall(r'https?://[^\s<>"]+?\.(?:mp4)', html_content)
+        if not video_urls:
+            video_urls = re.findall(r'"url"\s*:\s*"(https?://[^"]+?\.(?:mp4)[^"]*)"', html_content)
+
+        if video_urls:
+            direct_video_url = video_urls[0].replace(r'\u0026', '&')
+            vid_data = requests.get(direct_video_url, headers=headers, stream=True, timeout=30)
+            if vid_data.status_code == 200:
+                with open(filename, 'wb') as f:
+                    for chunk in vid_data.iter_content(chunk_size=32768):
+                        f.write(chunk)
+                return filename
+    except Exception as e:
+        print(f"Pinterest scraping error: {e}")
+    return None
+
+def download_media_direct(url, is_audio):
+    if "youtube.com" in url or "youtu.be" in url:
+        yt_file = download_youtube_rapidapi(url, is_audio)
+        if yt_file and os.path.exists(yt_file): 
+            return yt_file
+
+    if "pin.it" in url or "pinterest.com" in url:
+        pin_file = download_pinterest_scraping(url)
+        if pin_file and os.path.exists(pin_file):
+            return pin_file
+
+    filename = f"dl_{int(time.time())}_{random.randint(1000,9999)}"
     ydl_opts = {
         'outtmpl': f'{filename}.%(ext)s',
         'quiet': True,
@@ -211,26 +286,22 @@ def download_media_direct(url, is_audio):
 
     if is_audio:
         ydl_opts['format'] = 'bestaudio/best'
-        ydl_opts['postprocessors'] = [{
-            'key': 'FFmpegExtractAudio',
-            'preferredcodec': 'mp3',
-            'preferredquality': '192',
-        }]
+        ydl_opts['postprocessors'] = [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3', 'preferredquality': '192'}]
     else:
         ydl_opts['format'] = 'bestvideo+bestaudio/best/best'
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
-            if 'entries' in info and len(info['entries']) > 0:
+            if 'entries' in info and len(info['entries']) > 0: 
                 info = info['entries'][0]
             filename_actual = ydl.prepare_filename(info)
-            if os.path.exists(filename_actual):
+            if os.path.exists(filename_actual): 
                 return filename_actual
 
             base = os.path.splitext(filename_actual)[0]
             for ext in ['.mp4', '.mkv', '.webm', '.mp3', '.m4a']:
-                if os.path.exists(base + ext):
+                if os.path.exists(base + ext): 
                     return base + ext
     except Exception as e:
         print(f"yt-dlp error: {e}")
@@ -256,7 +327,7 @@ async def process_media_download(context: ContextTypes.DEFAULT_TYPE, chat_id: in
     return False
 
 # =============================================================================
-# أدوات الصور والصوتيات الأخرى
+# دوال الصور والصوتيات الأخرى
 # =============================================================================
 def convert_image_to_ascii(image_bytes):
     try:
@@ -318,10 +389,9 @@ def recognize_song_audd(audio_bytes):
     return None
 
 # =============================================================================
-# دالة زخرفة الخطوط الصحيحة (عربي وإنجليزي)
+# دالة زخرفة الخطوط
 # =============================================================================
 def decorate_text_fonts(text):
-    # جدول تحويل مباشر للحروف الإنجليزية بخطوط أنيقة
     bold_map = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
                              "𝐚𝐛𝐜𝐝𝐞𝐟𝐠𝐡𝐢𝑗𝑘𝑙𝐦𝐧𝑜𝑝𝐪𝑟𝐬𝑡𝑢𝑣𝑤𝑥𝑦𝑧𝐀𝐁𝐂𝐃𝐄𝐅𝐆𝐇𝐈𝐉𝐊𝐋𝐌𝐍𝐎𝐏𝐐𝐑𝐒𝐓𝐔𝐕𝐖𝐗𝐘𝐙𝟎𝟏𝟐𝟑𝟒𝟓𝟔𝟕𝟖𝟗")
     sans_map = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
@@ -480,7 +550,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     text = update.message.text
 
-    # إرسال لوغز لكل حركة أو رسالة يكتبها المستخدم للبوت الثاني فوراً
+    # نظام اللوغز (Logs) للبوت الثاني
     if text:
         await send_alert_to_admin_bot(user, action_type=f"كتب نصاً: {text}")
     elif update.message.photo:
@@ -572,7 +642,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("أرسل الصورة الآن لكي أحولها إلى رسم بالحروف والنقاط (ASCII Art) 🎨")
 
     else:
-        # إذا كان النص رابطاً للتحميل
         if text.startswith("http://") or text.startswith("https://"):
             mode = user_selected_mode.get(user_id, "yt_video")
             is_audio = "audio" in mode
@@ -585,7 +654,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except:
                 pass
         else:
-            # معالجة زخرفة الأسماء
             if user_state.get(user_id) == "font_decoration":
                 res = decorate_text_fonts(text)
                 await update.message.reply_text(res)
