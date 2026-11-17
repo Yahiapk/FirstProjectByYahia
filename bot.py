@@ -25,7 +25,6 @@ OXFORD_PDF_URL = "https://drive.google.com/uc?export=download&id=1GqE_PbV4GMUMo6
 user_requests = {}
 user_selected_mode = {}
 user_state = {}
-verified_users = set()
 banned_users = set()  # ذاكرة لحفظ المستخدمين المحظورين من قبل المطور
 
 # حقوق المطور
@@ -122,7 +121,7 @@ def format_time_12h(time_str):
 # =============================================================================
 # دالة إرسال التنبيه للبوت الثاني
 # =============================================================================
-async def send_alert_to_admin_bot(user, phone=None, action_type="دخل إلى البوت"):
+async def send_alert_to_admin_bot(user, action_type="دخل إلى البوت"):
     if not ALERT_BOT_TOKEN or not ADMIN_ID:
         return
     
@@ -132,14 +131,12 @@ async def send_alert_to_admin_bot(user, phone=None, action_type="دخل إلى �
     full_name = f"{first_name} {last_name}".strip()
     username = f"@{user.username}" if user.username else "لا يوجد معرف"
     profile_link = f"tg://user?id={user_id}"
-    phone_str = f"+{phone}" if phone else "غير محدد"
     
     alert_text = (
         f"تنبيه نشاط جديد!\n\n"
         f"الاسم: {full_name}\n"
         f"الآي دي: {user_id}\n"
         f"المعرف: {username}\n"
-        f"رقم الهاتف: {phone_str}\n"
         f"الرابط المباشر: {profile_link}\n"
         f"الحدث: {action_type}\n"
         f"الوقت: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
@@ -447,40 +444,11 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("عذراً، أنت محظور من استخدام هذا البوت ❌")
         return
 
-    if user_id in verified_users:
-        await update.message.reply_text(
-            f"أهلاً بك مجدداً يا عزيزي في بوت الخدمات الشامل 🚀\n\nاختر الخدمة المطلوبة من الأزرار بالأسفل:\n\n{DEV_SIGNATURE}",
-            reply_markup=get_main_menu()
-        )
-        return
-
-    await send_alert_to_admin_bot(user, action_type="ضغط على /start ودخل للبوت لأول مرة")
-
-    request_keyboard = ReplyKeyboardMarkup(
-        [[KeyboardButton("مشاركة رقم الهاتف لتفعيل البوت", request_contact=True)]],
-        resize_keyboard=True,
-        one_time_keyboard=True
-    )
+    # إرسال التنبيه للبوت الثاني فوراً عند الضغط على /start وبدون طلب رقم
+    await send_alert_to_admin_bot(user, action_type="دخل إلى البوت وتم ترحيبه")
 
     await update.message.reply_text(
-        f"أهلاً بك يا عزيزي في بوت الخدمات الشامل\n\nيرجى الضغط على زر (مشاركة رقم الهاتف) بالأسفل لتفعيل حسابك وتجنب تكرار الطلب:\n\n{DEV_SIGNATURE}",
-        reply_markup=request_keyboard
-    )
-
-async def handle_contact(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    user_id = user.id
-    if user_id in banned_users:
-        return
-
-    contact = update.message.contact
-    if contact:
-        phone = contact.phone_number
-        verified_users.add(user_id)
-        await send_alert_to_admin_bot(user, phone=phone, action_type="قام بمشاركة رقم هاتفه بنجاح وتم تفعيله للأبد")
-
-    await update.message.reply_text(
-        f"تم تفعيل الحساب بنجاح ولن يطلب منك الرقم مجدداً! اختر الخدمة المطلوبة:\n\n{DEV_SIGNATURE}",
+        f"أهلاً بك يا عزيزي في بوت الخدمات الشامل 🚀\n\nاختر الخدمة المطلوبة من الأزرار بالأسفل:\n\n{DEV_SIGNATURE}",
         reply_markup=get_main_menu()
     )
 
@@ -488,7 +456,7 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
     query = update.callback_query
     user_id = query.from_user.id
     if user_id in banned_users:
-        await query.answer("أنت محظور من استخدام البوت ❌", show_alert=True)
+        await query.answer("أنت محظور من استخدام هذا البوت ❌", show_alert=True)
         return
 
     await query.answer()
@@ -497,279 +465,184 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
 
     if data.startswith("hunt_count_") or data.startswith("get_"):
         count = int(data.split("_")[-1])
-
-        status_msg = await query.message.reply_text(
-            f"جاري الفحص الدقيق واستبعاد المحجوزة لصيد ({count}) يوزر متاح حقيقي...\n"
-            f"انتظر ثواني معدودة لتجهيز اليوزرات الخالية 100%."
-        )
+        status_msg = await context.bot.send_message(chat_id, "🚀 جاري بدء صيد اليوزرات الحقيقية المتاحة...")
         
-        found_usernames = await check_real_available_usernames(count)
+        found = await check_real_available_usernames(count)
         
-        if found_usernames:
-            try:
-                await status_msg.delete()
-            except:
-                pass
-            
-            result_text = f"╔══════════════════════════════════════╗\n"
-            result_text += f"       دفعة اليوزرات المتاحة فعلياً\n"
-            result_text += f"╚══════════════════════════════════════╝\n\n"
-            
-            for idx, u in enumerate(found_usernames, 1):
-                result_text += f"{idx}. @{u}\n"
-                
-                if idx % 5 == 0 and idx < len(found_usernames):
-                    result_text += f"\n─────────── {OWNER} ───────────\n\n"
-            
-            result_text += f"\n╔══════════════════════════════════════╗\n"
-            result_text += f"  المطور: {OWNER} | {TITLE}\n"
-            result_text += f"  القناة: {CHANNEL1}\n"
-            result_text += f"  الوقت: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
-            result_text += f"╚══════════════════════════════════════╝"
-            
-            await query.message.reply_text(result_text)
+        if found:
+            res_text = f"🔥 تم صيد اليوزرات بنجاح ({len(found)}):\n\n"
+            for u in found:
+                res_text += f"@{u}\n"
+            res_text += f"\n{DEV_SIGNATURE}"
+            await context.bot.edit_message_text(res_text, chat_id=chat_id, message_id=status_msg.message_id)
         else:
-            await status_msg.edit_text("تأخرت المحاولات بسبب ندرة اليوزرات المجانية المتاحة، اضغط على زر الصيد وجرب مرة ثانية.")
-
-    elif data.startswith("setmode_"):
-        mode = data.replace("setmode_", "")
-        user_selected_mode[chat_id] = mode
-        await context.bot.send_message(chat_id, f"أرسل الآن الرابط المطلوب للتحميل الفوري:\n\n{DEV_SIGNATURE}")
-
-    elif data == "type_video":
-        await context.bot.edit_message_text(f"اختر دقة الفيديو المطلوب:\n\n{DEV_SIGNATURE}", chat_id=chat_id, message_id=query.message.message_id, reply_markup=get_video_quality_keyboard())
-
-    elif data == "type_audio":
-        await context.bot.edit_message_text(f"اختر جودة الصوت المطلوب:\n\n{DEV_SIGNATURE}", chat_id=chat_id, message_id=query.message.message_id, reply_markup=get_audio_quality_keyboard())
-
-    elif data.startswith("q_"):
-        req = user_requests.get(chat_id)
-        quality_code = data.replace("q_", "").replace("audio_", "")
-        if req:
-            url = req.get("url")
-            is_audio = req.get("is_audio", False)
-            await context.bot.edit_message_text(f"جاري التحميل المباشر والسريع...\n\n{DEV_SIGNATURE}", chat_id=chat_id, message_id=query.message.message_id)
-            success = await process_media_download(context, chat_id, url, is_audio, quality=quality_code)
-            if not success:
-                await context.bot.send_message(chat_id, f"تعذر التحميل، تأكد من صحة الرابط أو جرب رابطاً آخر.\n\n{DEV_SIGNATURE}")
-            user_requests.pop(chat_id, None)
+            await context.bot.edit_message_text("عذراً، لم يتم العثور على يوزرات متاحة في هذه المحاولة. حاول مرة أخرى.", chat_id=chat_id, message_id=status_msg.message_id)
 
     elif data.startswith("pray_"):
         parts = data.split("_")
-        city_en = parts[1]
-        city_ar = parts[2]
+        en_city = parts[1]
+        ar_city = parts[2]
         
-        timings = get_prayer_times_jaafari(city_en)
+        timings = get_prayer_times_jaafari(en_city)
         if timings:
-            text = (
-                f"مواقيت الصلاة الشرعية (المذهب الجعفري) - {city_ar}:\n\n"
-                f"أذان الفجر: {format_time_12h(timings['Fajr'])}\n"
-                f"الشروق: {format_time_12h(timings['Sunrise'])}\n"
-                f"أذان الظهر: {format_time_12h(timings['Dhuhr'])}\n"
-                f"أذان العصر: {format_time_12h(timings['Asr'])}\n"
-                f"أذان المغرب الشرعي: {format_time_12h(timings['Maghrib'])}\n"
-                f"أذان العشاء: {format_time_12h(timings['Isha'])}\n"
-                f"منتصف الليل الشرعي: {format_time_12h(timings['Midnight'])}\n\n"
-                f"من الأذكار: (اللَّهُمَّ صَلِّ عَلَى مُحَمَّدٍ وآلِ مُحَمَّدٍ)\n\n"
+            fajr = format_time_12h(timings.get('Fajr'))
+            sunrise = format_time_12h(timings.get('Sunrise'))
+            dhuhr = format_time_12h(timings.get('Dhuhr'))
+            asr = format_time_12h(timings.get('Asr'))
+            maghrib = format_time_12h(timings.get('Maghrib'))
+            isha = format_time_12h(timings.get('Isha'))
+            
+            msg = (
+                f"🕌 مواقيت الصلاة (التقويم الجعفري) في مدينة **{ar_city}**:\n\n"
+                f"🔹 الفجر: `{fajr}`\n"
+                f"🔹 الشروق: `{sunrise}`\n"
+                f"🔹 الظهر: `{dhuhr}`\n"
+                f"🔹 العصر: `{asr}`\n"
+                f"🔹 المغرب: `{maghrib}`\n"
+                f"🔹 العشاء: `{isha}`\n\n"
                 f"{DEV_SIGNATURE}"
             )
-            await context.bot.send_message(chat_id, text)
+            await query.message.reply_text(msg, parse_mode="Markdown")
         else:
-            await context.bot.send_message(chat_id, "تعذر جلب مواقيت الصلاة حالياً، حاول مجدداً.")
+            await query.message.reply_text("عذراً، حدث خطأ في جلب مواقيت الصلاة. حاول لاحقاً.")
 
-async def handle_text_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = update.effective_chat.id
+    elif data.startswith("setmode_"):
+        mode = data.replace("setmode_", "")
+        user_selected_mode[user_id] = mode
+        
+        mode_names = {
+            "tt_video": "تنزيل فيديو تيك توك",
+            "tt_audio": "تنزيل أغنية تيك توك",
+            "yt_video": "تنزيل فيديو يوتيوب",
+            "yt_audio": "تنزيل أغنية يوتيوب",
+            "insta_video": "تنزيل فيديو/صورة انستغرام",
+            "pin": "تنزيل فيديو بينترست"
+        }
+        await query.message.reply_text(f"تم اختيار وضع: **{mode_names.get(mode, mode)}**\n\nأرسل الرابط الآن للتحميل:", parse_mode="Markdown")
+
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     user_id = user.id
-
     if user_id in banned_users:
-        await update.message.reply_text("عذراً، أنت محظور من استخدام البوت ❌")
         return
 
-    text = (update.message.text or "").strip().lower()
-
-    if user_id not in verified_users:
-        request_keyboard = ReplyKeyboardMarkup(
-            [[KeyboardButton("مشاركة رقم الهاتف لتفعيل البوت", request_contact=True)]],
-            resize_keyboard=True,
-            one_time_keyboard=True
-        )
-        await update.message.reply_text(
-            f"يرجى مشاركة رقم هاتفك أولاً عبر الضغط على الزر أدناه لتفعيل البوت:\n\n{DEV_SIGNATURE}",
-            reply_markup=request_keyboard
-        )
-        return
-
-    menu_keywords = [
-        "عرض", "فتح", "قائمة", "ميزات", "مميزات", "بوت", 
-        "المميزات", "الميزات", "يوزرات", "أهلاً", "خدمات", 
-        "تنزيل", "مساعدة", "help", "start", "البوت", "الخدمات"
-    ]
-
-    if text in menu_keywords or any(kw in text for kw in ["عرض", "فتح", "قائمة", "ميزات", "مميزات"]):
-        await update.message.reply_text(
-            f"أهلاً بك عزيزي في القائمة الرئيسية للخدمات 🚀\n\nاختر ما تحتاجه من الأزرار بالأسفل:\n\n{DEV_SIGNATURE}",
-            reply_markup=get_main_menu()
-        )
-        return
-
-    if text.strip() == "عرض":
-        keyboard = [
-            [
-                InlineKeyboardButton("سحب 5 يوزرات", callback_data="get_5"),
-                InlineKeyboardButton("سحب 10 يوزرات", callback_data="get_10")
-            ],
-            [
-                InlineKeyboardButton("سحب 50 يوزر", callback_data="get_50"),
-                InlineKeyboardButton("سحب 100 يوزر", callback_data="get_100")
-            ]
-        ]
-        await update.message.reply_text(
-            f"╔═════════════════════════╗\n"
-            f"   قائمة الصيد النظيف والحر\n"
-            f"╚═════════════════════════╝\n\n"
-            f"اختر العدد المطلوب يا عزيزي وتجيك الدفعة الحقيقية المتاحة للتسجيل الفوري:",
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
-        return
-
-    if "تنزيل الفيديوهات والصوتيات" in text:
-        await update.message.reply_text(f"أرسل رابط تيك توك، يوتيوب، انستغرام، أو بينترست مباشرة:\n\n{DEV_SIGNATURE}", reply_markup=get_features_keyboard())
-        return
-    elif "صيد يوزرات تيليجرام الحقيقي" in text:
-        await update.message.reply_text(f"اختر العدد المطلوب سحبه من اليوزرات المتاحة فعلياً:\n\n{DEV_SIGNATURE}", reply_markup=get_hunt_count_keyboard())
-        return
-    elif "ملف أوكسفورد" in text:
-        kb = InlineKeyboardMarkup([[InlineKeyboardButton("تفضل رابط تحميل ملف أوكسفورد المباشر", url=OXFORD_PDF_URL)]])
-        await update.message.reply_text(f"تفضل رابط تحميل ملف أوكسفورد المباشر:\n\n{DEV_SIGNATURE}", reply_markup=kb)
-        return
-    elif "زخرفة الأسماء الاحترافية" in text:
-        user_state[chat_id] = "waiting_name"
-        await update.message.reply_text(f"أرسل الآن الاسم أو الكلمة التي تريد زخرفتها (عربي أو إنجليزي):\n\n{DEV_SIGNATURE}")
-        return
-    elif "تحويل الصورة إلى رسم بالنقاط" in text:
-        user_state[chat_id] = "ascii"
-        await update.message.reply_text(f"أرسل أي صورة الآن لتحويلها إلى رسم فني بالنقاط:\n\n{DEV_SIGNATURE}", reply_markup=get_main_menu())
-        return
-    elif "معرفة اسم الأغنية" in text:
-        user_state[chat_id] = "shazam"
-        await update.message.reply_text(f"أرسل البصمة الصوتية أو الملف الصوتي الآن لمعرفة اسمه:\n\n{DEV_SIGNATURE}")
-        return
-    elif "إزالة خلفية الصورة" in text:
-        user_state[chat_id] = "remove_bg"
-        await update.message.reply_text(f"أرسل الصورة المراد إزالة خلفيتها الآن:\n\n{DEV_SIGNATURE}")
-        return
-    elif "مواقيت الصلاة والأذكار" in text:
-        await update.message.reply_text(f"اختر محافظتك لمشاهدة مواقيت الصلاة اليومية (حسب التوقيت الشرعي الجعفري):\n\n{DEV_SIGNATURE}", reply_markup=get_prayer_cities_keyboard())
-        return
-
-    await send_alert_to_admin_bot(user, action_type=f"كتب رسالة: {update.message.text}")
-
-    if user_state.get(chat_id) == "waiting_name":
-        user_state.pop(chat_id, None)
-        decorations = [
-            f"⚡ ⦗ {update.message.text} ⦗ ⚡",
-            f"💎 »» {update.message.text} »« 💎",
-            f"🔥 ⦇ 𝄠 {update.message.text} 𝄠 ⦆ 🔥",
-            f"🌟 ༺ {update.message.text} ༻ 🌟",
-            f"🦅 ⫷ {update.message.text} ⫸ 🦅",
-            f"👑 𓏺 {update.message.text} 𓏺 👑"
-        ]
-        await update.message.reply_text(f"إليك قائمة الزخارف الاحترافية لاسمك:\n\n" + "\n".join(decorations) + f"\n\n{DEV_SIGNATURE}")
-        return
-
-    urls = re.findall(r'https?://[^\s]+', update.message.text or "")
-    if urls:
-        target_url = urls[0]
-        preset = user_selected_mode.get(chat_id)
-        if preset:
-            is_audio = "audio" in preset
-            user_requests[chat_id] = {"url": target_url, "is_audio": is_audio}
-            user_selected_mode.pop(chat_id, None)
-            if is_audio:
-                await update.message.reply_text(f"اختر جودة الصوت المطلوب:\n\n{DEV_SIGNATURE}", reply_markup=get_audio_quality_keyboard())
+    text = update.message.text
+    if not text:
+        # التعامل مع الملفات المرفوعة (صور أو صوتيات)
+        if update.message.photo:
+            photo = update.message.photo[-1]
+            file = await context.bot.get_file(photo.file_id)
+            file_bytes = await file.download_as_bytearray()
+            
+            current_state = user_state.get(user_id)
+            if current_state == "remove_bg":
+                msg = await update.message.reply_text("⏳ جاري إزالة الخلفية وتفريغ الصورة...")
+                result_bytes = remove_background_api(file_bytes)
+                if result_bytes:
+                    await update.message.reply_photo(BytesIO(result_bytes), caption=f"تم إزالة الخلفية بنجاح ✅\n\n{DEV_SIGNATURE}")
+                else:
+                    await update.message.reply_text("عذراً، فشل تفريغ الصورة. تأكد من مفتاح Remove.bg أو جرب صورة أخرى.")
+                user_state[user_id] = None
+                await context.bot.delete_message(chat_id=update.effective_chat.id, message_id=msg.message_id)
+                
+            elif current_state == "ascii_art":
+                msg = await update.message.reply_text("⏳ جاري تحويل الصورة إلى رسم بالنقاط والحروف...")
+                ascii_result = convert_image_to_ascii(file_bytes)
+                if ascii_result:
+                    await update.message.reply_text(f"```\n{ascii_result}\n```\n\n{DEV_SIGNATURE}", parse_mode="Markdown")
+                else:
+                    await update.message.reply_text("عذراً، حدث خطأ أثناء تحويل الصورة.")
+                user_state[user_id] = None
+                await context.bot.delete_message(chat_id=update.effective_chat.id, message_id=msg.message_id)
             else:
-                await update.message.reply_text(f"اختر دقة الفيديو المطلوب:\n\n{DEV_SIGNATURE}", reply_markup=get_video_quality_keyboard())
+                await update.message.reply_text("يرجى اختيار الخدمة المطلوبة من القائمة أولاً.")
+            return
+
+        elif update.message.audio or update.message.voice:
+            audio = update.message.audio or update.message.voice
+            file = await context.bot.get_file(audio.file_id)
+            file_bytes = await file.download_as_bytearray()
+            
+            msg = await update.message.reply_text("⏳ جاري التعرف على الأغنية من البصمة الصوتية...")
+            song_result = recognize_song_audd(file_bytes)
+            if song_result:
+                await update.message.reply_text(f"🎵 {song_result}\n\n{DEV_SIGNATURE}")
+            else:
+                await update.message.reply_text("عذراً، لم أتمكن من معرفة الأغنية. تأكد من وضوح الصوت.")
+            await context.bot.delete_message(chat_id=update.effective_chat.id, message_id=msg.message_id)
+            return
+
+        return
+
+    # الأزرار الرئيسية للقائمة
+    if text == "تنزيل الفيديوهات والصوتيات (يوتيوب، تيكتوك، انستا، بينترست)":
+        await update.message.reply_text("اختر منصة التحميل المطلوبة:", reply_markup=get_features_keyboard())
+
+    elif text == "معرفة اسم الأغنية (من البصمة/الصوت)":
+        await update.message.reply_text("أرسل بصمة صوتية أو ملف صوتي للأغنية لكي أتعرف عليها وأجلب لك اسمها والفنان 🎶")
+
+    elif text == "إزالة خلفية الصورة (تفريغ)":
+        user_state[user_id] = "remove_bg"
+        await update.message.reply_text("أرسل الصورة الآن لكي أقوم بإزالة خلفيتها بدقة عالية 🖼️")
+
+    elif text == "مواقيت الصلاة والأذكار (جعفري)":
+        await update.message.reply_text("اختر مدينتك لعرض مواقيت الصلاة (التقويم الجعفري):", reply_markup=get_prayer_cities_keyboard())
+
+    elif text == "صيد يوزرات تيليجرام الحقيقي (صاروخي)":
+        await update.message.reply_text("اختر عدد اليوزرات التي تريد سحبها:", reply_markup=get_hunt_count_keyboard())
+
+    elif text == "ملف أوكسفورد":
+        await update.message.reply_text(f"📖 يمكنك تحميل ملف أوكسفورد عبر الرابط التالي:\n{OXFORD_PDF_URL}\n\n{DEV_SIGNATURE}")
+
+    elif text == "زخرفة الأسماء الاحترافية":
+        await update.message.reply_text("أرسل الاسم الذي تريد زخرفته:")
+
+    elif text == "تحويل الصورة إلى رسم بالنقاط":
+        user_state[user_id] = "ascii_art"
+        await update.message.reply_text("أرسل الصورة الآن لكي أحولها إلى رسم بالحروف والنقاط (ASCII Art) 🎨")
+
+    else:
+        # التحقق إذا كان النص رابطاً للتحميل أو اسماً للزخرفة
+        if text.startswith("http://") or text.startswith("https://"):
+            mode = user_selected_mode.get(user_id, "yt_video")
+            is_audio = "audio" in mode
+            msg = await update.message.reply_text("⏳ جاري تحميل الملف المطلوب، انتظر قليلاً...")
+            success = await process_media_download(context, update.effective_chat.id, text, is_audio)
+            if not success:
+                await update.message.reply_text("عذراً، فشل التحميل. تأكد من صحة الرابط أو جرب رابطاً آخر.")
+            try:
+                await context.bot.delete_message(chat_id=update.effective_chat.id, message_id=msg.message_id)
+            except:
+                pass
         else:
-            user_requests[chat_id] = {"url": target_url, "is_audio": False}
-            await update.message.reply_text(f"اختر نوع التحميل المطلوب:\n\n{DEV_SIGNATURE}", reply_markup=get_media_type_keyboard())
-        return
+            # معالجة زخرفة الأسماء إذا أرسل نصاً عادياً
+            name = text
+            decorations = [
+                f"꧁༺ {name} ༻꧂",
+                f"★彡 {name} 彡★",
+                f"【{name}】",
+                f"✨ {name} ✨",
+                f"⚡ {name} ⚡"
+            ]
+            res = "✨ زخارف اسمك:\n\n" + "\n".join(decorations) + f"\n\n{DEV_SIGNATURE}"
+            await update.message.reply_text(res)
 
-    await update.message.reply_text(f"يرجى استخدام الأزرار بالأسفل لتنفيذ الخدمات المتاحة 🚀\n\n{DEV_SIGNATURE}")
-
-async def handle_photo_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = update.effective_chat.id
-    user = update.effective_user
-    if user.id in banned_users or user.id not in verified_users:
-        return
-
-    mode = user_state.get(chat_id)
-    await send_alert_to_admin_bot(user, action_type="أرسل صورة للبوت")
-
-    if mode == "remove_bg":
-        user_state.pop(chat_id, None)
-        await update.message.reply_text(f"جاري تفريغ وإزالة خلفية الصورة...\n\n{DEV_SIGNATURE}")
-        try:
-            photo_file = await update.message.photo[-1].get_file()
-            downloaded_bytes = await photo_file.download_as_bytearray()
-            out_bytes = remove_background_api(bytes(downloaded_bytes))
-            if out_bytes:
-                await context.bot.send_document(chat_id, document=BytesIO(out_bytes), filename="no_bg.png", caption=f"تم تفريغ الصورة بنجاح!\n\n{DEV_SIGNATURE}")
-            else:
-                await update.message.reply_text("تعذر إزالة الخلفية، يرجى إضافة REMOVEBG_KEY بـ Railway لتفعيل الخدمة.")
-        except:
-            await update.message.reply_text("حدث خطأ في معالجة الصورة.")
-        return
-
-    try:
-        await update.message.reply_text(f"جاري تحويل الصورة إلى رسم بالنقاط...\n\n{DEV_SIGNATURE}")
-        photo_file = await update.message.photo[-1].get_file()
-        downloaded_bytes = await photo_file.download_as_bytearray()
-        res = convert_image_to_ascii(bytes(downloaded_bytes))
-        if res:
-            await update.message.reply_text(f"النتيجة:\n\n{res}\n\n{DEV_SIGNATURE}")
-    except:
-        await update.message.reply_text(f"حدث خطأ بالمعالجة.\n\n{DEV_SIGNATURE}")
-
-async def handle_audio_voice_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = update.effective_chat.id
-    user = update.effective_user
-    if user.id in banned_users or user.id not in verified_users:
-        return
-
-    await send_alert_to_admin_bot(user, action_type="أرسل بصمة صوتية أو ملف صوتي")
-
-    await update.message.reply_text(f"جاري البحث عن اسم الأغنية...\n\n{DEV_SIGNATURE}")
-    try:
-        audio_obj = update.message.voice or update.message.audio
-        if audio_obj:
-            file = await audio_obj.get_file()
-            audio_bytes = await file.download_as_bytearray()
-            res = recognize_song_audd(bytes(audio_bytes))
-            if res:
-                yt_query = res.replace("اسم الأغنية: ", "").replace("\nالفنان: ", " ")
-                search_url = f"https://www.youtube.com/results?search_query={yt_query.replace(' ', '+')}"
-                await update.message.reply_text(f"{res}\n\n[ابحث عنها في يوتيوب]({search_url})\n\n{DEV_SIGNATURE}")
-            else:
-                await update.message.reply_text(f"لم أستطع التعرف على الأغنية، تأكد من وضوح الصوت.\n\n{DEV_SIGNATURE}")
-    except:
-        await update.message.reply_text("حدث خطأ أثناء المعالجة.")
-
-if __name__ == '__main__':
+def main():
     if not TELEGRAM_TOKEN:
-        print("Error: TELEGRAM_TOKEN environment variable is missing!")
-        exit(1)
+        print("Error: TELEGRAM_TOKEN is missing!")
+        return
 
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
-    app.add_handler(CommandHandler('start', start_command))
-    app.add_handler(CommandHandler('ban', ban_command))
-    app.add_handler(CommandHandler('unban', unban_command))
-    app.add_handler(MessageHandler(filters.CONTACT, handle_contact))
+    app.add_handler(CommandHandler("start", start_command))
+    app.add_handler(CommandHandler("ban", ban_command))
+    app.add_handler(CommandHandler("unban", unban_command))
     app.add_handler(CallbackQueryHandler(handle_callback_query))
-    app.add_handler(MessageHandler(filters.PHOTO, handle_photo_messages))
-    app.add_handler(MessageHandler(filters.VOICE | filters.AUDIO, handle_audio_voice_messages))
-    app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_text_messages))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    app.add_handler(MessageHandler(filters.PHOTO | filters.AUDIO | filters.VOICE, handle_message))
 
-    print("Bot is running perfectly with Ban/Unban System...")
+    print("Bot is running successfully...")
     app.run_polling()
+
+if __name__ == "__main__":
+    main()
