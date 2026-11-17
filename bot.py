@@ -209,9 +209,17 @@ async def check_real_available_usernames(count):
     return found_users
 
 # =============================================================================
-# دوال التنزيل المطورة (تيكتوك، يوتيوب، انستا، بينترست مع دعم الجودات)
+# دوال التنزيل المطورة والمصلحة (معالجة بينترست والروابط المختصرة)
 # =============================================================================
 def download_media_direct(url, is_audio, quality="best"):
+    # فك الرابط المختصر لو كان بينترست
+    if "pin.it" in url:
+        try:
+            resp = requests.get(url, allow_redirects=True, timeout=10)
+            url = resp.url
+        except:
+            pass
+
     filename = f"dl_{int(time.time())}_{random.randint(1000,9999)}"
     
     ydl_opts = {
@@ -232,14 +240,17 @@ def download_media_direct(url, is_audio, quality="best"):
             'preferredquality': bitrate,
         }]
     else:
-        if quality == '360':
-            ydl_opts['format'] = 'best[height<=360]/best'
-        elif quality == '720':
-            ydl_opts['format'] = 'best[height<=720]/best'
-        elif quality == '1080':
-            ydl_opts['format'] = 'best[height<=1080]/best'
+        if "pinterest.com" in url or "pin.it" in url:
+            ydl_opts['format'] = 'best/bestvideo+bestaudio'
         else:
-            ydl_opts['format'] = 'bestvideo+bestaudio/best/best'
+            if quality == '360':
+                ydl_opts['format'] = 'best[height<=360]/best'
+            elif quality == '720':
+                ydl_opts['format'] = 'best[height<=720]/best'
+            elif quality == '1080':
+                ydl_opts['format'] = 'best[height<=1080]/best'
+            else:
+                ydl_opts['format'] = 'bestvideo+bestaudio/best/best'
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -348,7 +359,7 @@ def decorate_text_fonts(text):
     sans_map = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
                              "𝗮𝗯𝗰𝗱𝚎𝗳𝗴𝙝𝗶𝗷𝗸𝗹𝗺𝚗𝗼𝗽𝗾𝗿𝘀𝘁𝘂𝘃𝘄𝘅𝘆𝘇𝗔𝗕𝗖𝗗𝗘𝗙𝗚𝗛𝗜𝗝𝗞𝗟𝗠𝗡𝗢𝗣𝗤𝗥𝗦𝗧𝗨𝗩𝗪𝗫𝗬𝗭𝟬𝟭𝟮𝟯𝟰𝟱𝟲𝟳𝟴𝟵")
     script_map = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
-                               "𝒶𝒷𝒸𝒹ℯ𝒻ℊ𝒽𝒾𝒿𝓀𝓁𝓂𝓃ℴ𝓅𝓆𝓇𝓈𝓉𝓊𝓋𝓌𝓍𝓎𝓏𝒜ℬ𝒞𝒟ℰℱ𝒢𝒋ℐ𝒥𝒦ℒℳ𝒩𝒪𝒫𝒬ℛ𝒮𝒯𝒰𝒱𝒲𝒳𝒴𝒵")
+                               "𝒶𝒷𝒸𝒹ℯ𝒻ℊ𝒽𝒾𝒿𝓀𝓁𝓂𝓃ℴ𝓅𝓆𝓇𝓈𝓉𝓊𝓋𝓌𝓍𝓎𝓏𝒜ℬ𝒞𝒟ℰℱ𝒢ℋℐ𝒥𝒦ℒℳ𝒩𝒪𝒫𝒬ℛ𝒮𝒯𝒰𝒱𝒲𝒳𝒴𝒵")
     mono_map = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
                              "𝚊𝚋𝚌𝚍𝚎𝚏𝚐𝚑𝚒𝚓𝚔𝚕𝚖𝚗𝚘𝚙𝚚𝚛𝚜𝚝𝚞𝚟𝚠🇽𝚢𝚣𝙰𝙱𝙲𝙳𝙴𝙵𝙶𝙷𝙸𝙹𝙺𝙻𝙼𝙽𝙾𝙿𝚀𝚁𝚂𝚃𝚄𝚅𝚆𝚇𝚈𝚉𝟶𝟷𝟸𝟹𝟺𝟻𝟼𝟽𝟾𝟿")
     bubble_map = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
@@ -492,8 +503,11 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
             "pin": "تنزيل فيديو بينترست"
         }
         
-        # إظهار أزرار تحديد الجودة بعد اختيار الوضع
-        if "audio" in mode:
+        # إذا كان بينترست نتخطى اختيار الجودة لأنه لا يحتاجها ونطلب الرابط مباشرة
+        if mode == "pin":
+            user_quality[user_id] = "best"
+            await query.message.reply_text(f"تم اختيار وضع: **{mode_names.get(mode, mode)}**\n\nأرسل الرابط الآن للتحميل:", parse_mode="Markdown")
+        elif "audio" in mode:
             await query.message.reply_text(f"تم اختيار وضع: **{mode_names.get(mode, mode)}**\n\nاختر جودة الصوت المطلوبة:", reply_markup=get_audio_quality_keyboard(), parse_mode="Markdown")
         else:
             await query.message.reply_text(f"تم اختيار وضع: **{mode_names.get(mode, mode)}**\n\nاختر جودة الفيديو المطلوبة:", reply_markup=get_video_quality_keyboard(), parse_mode="Markdown")
@@ -609,7 +623,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if text.startswith("http://") or text.startswith("https://"):
             mode = user_selected_mode.get(user_id, "yt_video")
             quality = user_quality.get(user_id, "best")
-            is_audio = "audio" in mode
+            is_audio = "audio" in mode or mode == "tt_audio" or mode == "yt_audio"
+            
+            # إذا اختار بينترست نتأكد أن الوضع مخصص للفيديو بغض النظر عن الجودة
+            if mode == "pin":
+                is_audio = False
+
             msg = await update.message.reply_text("⏳ جاري تحميل الملف المطلوب، انتظر قليلاً...")
             success = await process_media_download(context, update.effective_chat.id, text, is_audio, quality)
             if not success:
