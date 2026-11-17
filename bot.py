@@ -399,6 +399,48 @@ def recognize_song_audd(audio_bytes):
     return None
 
 # =============================================================================
+# دالة زخرفة وتغيير خطوط الأسماء (عربي وإنجليزي)
+# =============================================================================
+def decorate_text_fonts(text):
+    # جداول تحويل الخطوط للإنجليزية
+    en_bold = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                            "𝐚𝐛𝐜𝐝𝐞𝐟𝐠𝐡𝐢𝑗𝑘𝑙𝐦𝐧𝑜𝑝𝐪𝑟𝐬𝑡𝑢𝑣𝑤𝑥𝑦𝑧𝐀𝐁𝐂𝐃𝐄𝐅𝐆𝐇𝐈𝐉𝐊𝐋𝐌𝐍𝐎𝐏𝐐𝐑𝐒𝐓𝐔𝐕𝐖𝐗𝐘𝐙𝟎𝟏𝟐𝟑𝟒𝟓𝟔𝟕𝟖𝟗")
+    en_sans = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                            "𝗮𝗯𝗰𝗱𝗲𝗳𝗴𝗵𝗶𝗷𝗸𝗹𝗺𝗻𝗼𝗽𝗾𝗿𝘀𝘁𝘂𝘃𝘄𝘅𝘆𝘇𝗔𝗕𝗖𝗗𝗘𝗫𝗙𝗚𝗛𝗜𝗝𝗞𝗟𝗠𝗡𝗢𝗣𝗤𝗥𝗦𝗧𝗨𝗩𝗪𝗫𝗬𝗭𝟬𝟭𝟮𝟯𝟰𝟱𝟲𝟳𝟴𝟵")
+    en_script = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
+                              "𝒶𝒷𝒸𝒹ℯ𝒻ℊ𝒽𝒾𝒿𝓀𝓁𝓂𝓃ℴ𝓅𝓆𝓇𝓈𝓉𝓊𝓋𝓌𝓍𝓎𝓏𝒜ℬ𝒞𝒟ℰℱ𝒢ℋℐ𝒥𝒦ℒℳ𝒩𝒪𝒫𝒬ℛ𝒮𝒯𝒰𝒱𝒲𝒳𝒴𝒵")
+    en_mono = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                            "𝚊𝚋𝚌𝚍𝚎𝚏𝚐𝚑𝚒𝚓𝚔𝚕𝚖𝚗𝚘𝚙𝚚𝚛𝚜𝚝𝚞𝚟𝚠🇽𝚢𝚣𝙰𝙱𝙲𝙳𝙴𝙵𝙶𝙷𝙸𝙹𝙺𝙻𝙼𝙽𝙾𝙿𝚀𝚁𝚂𝚃𝚄𝚅𝚆𝚇𝚈𝚉𝟶𝟷𝟸𝟹𝟺𝟻𝟼𝟽𝟾𝟿")
+    en_bubble = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+                            "ⓐⓑⓒⓓⓔⓕⓖⓗⓘⓙⓚⓛⓜⓝⓞⓟⓠⓡⓢⓣⓤⓥⓦⓧⓨⓩⒶⒷⒸⒹⒺⒻGⒽⒾⒿⓀⓁⓂⓃⓄⓅⓆⓇⓈⓉⓊⓋⓌⓍⓎⓏ⓪①②③④⑤⑥⑦⑧⑨")
+
+    # جداول تحويل الخطوط العربية (حروف ممدودة ومزخرفة باليونيكود)
+    ar_normal = text
+    # إبدال بعض الحروف العربية بحروف زخرفية شبيهة بالخط الفارسي أو الكوفي
+    ar_fancy = (text.replace("ا", "آ").replace("ب", "بّ").replace("د", "دّ")
+                .replace("ر", "رّ").replace("س", "سۦ").replace("م", "مُ"))
+    ar_spaced = " ".join(list(text))  # مباعدة الحروف
+
+    res_en_bold = text.translate(en_bold)
+    res_en_sans = text.translate(en_sans)
+    res_en_script = text.translate(en_script)
+    res_en_mono = text.translate(en_mono)
+    res_en_bubble = text.translate(en_bubble)
+
+    output = (
+        f"✒️ **أنواع الخطوط وزخرفة الاسم لـ ({text}):**\n\n"
+        f"1️⃣ خط عريض (Bold):\n`{res_en_bold}`\n\n"
+        f"2️⃣ خط حديث (Sans):\n`{res_en_sans}`\n\n"
+        f"3️⃣ خط مائل فخم (Script):\n`{res_en_script}`\n\n"
+        f"4️⃣ خط الآلة الكاتبة (Mono):\n`{res_en_mono}`\n\n"
+        f"5️⃣ خط الدوائر (Bubble):\n`{res_en_bubble}`\n\n"
+        f"6️⃣ زخرفة عربية مميزة:\n`{ar_fancy}`\n\n"
+        f"7️⃣ حروف عربية مباعدة:\n`{ar_spaced}`\n\n"
+        f"{DEV_SIGNATURE}"
+    )
+    return output
+
+# =============================================================================
 # أوامر حظر ورفع الحظر وإدارة المستخدمين
 # =============================================================================
 async def ban_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -456,7 +498,7 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
     query = update.callback_query
     user_id = query.from_user.id
     if user_id in banned_users:
-        await query.answer("أنت محظور من استخدام هذا البوت ❌", show_alert=True)
+        await query.answer("أنت محظور من استخدام البوت ❌", show_alert=True)
         return
 
     await query.answer()
@@ -595,14 +637,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"📖 يمكنك تحميل ملف أوكسفورد عبر الرابط التالي:\n{OXFORD_PDF_URL}\n\n{DEV_SIGNATURE}")
 
     elif text == "زخرفة الأسماء الاحترافية":
-        await update.message.reply_text("أرسل الاسم الذي تريد زخرفته:")
+        user_state[user_id] = "font_decoration"
+        await update.message.reply_text("✍️ أرسل الاسم أو الكلمة الآن لكي أعطيك إياها بأنواع مختلفة من الخطوط العربية والإنجليزية:")
 
     elif text == "تحويل الصورة إلى رسم بالنقاط":
         user_state[user_id] = "ascii_art"
         await update.message.reply_text("أرسل الصورة الآن لكي أحولها إلى رسم بالحروف والنقاط (ASCII Art) 🎨")
 
     else:
-        # التحقق إذا كان النص رابطاً للتحميل أو اسماً للزخرفة
+        # التحقق إذا كان النص رابطاً للتحميل
         if text.startswith("http://") or text.startswith("https://"):
             mode = user_selected_mode.get(user_id, "yt_video")
             is_audio = "audio" in mode
@@ -615,17 +658,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except:
                 pass
         else:
-            # معالجة زخرفة الأسماء إذا أرسل نصاً عادياً
-            name = text
-            decorations = [
-                f"꧁༺ {name} ༻꧂",
-                f"★彡 {name} 彡★",
-                f"【{name}】",
-                f"✨ {name} ✨",
-                f"⚡ {name} ⚡"
-            ]
-            res = "✨ زخارف اسمك:\n\n" + "\n".join(decorations) + f"\n\n{DEV_SIGNATURE}"
-            await update.message.reply_text(res)
+            # إذا اختار المستخدم زر زخرفة الأسماء وكتب الاسم
+            if user_state.get(user_id) == "font_decoration":
+                res = decorate_text_fonts(text)
+                await update.message.reply_text(res, parse_mode="Markdown")
+                user_state[user_id] = None
+            else:
+                # بشكل افتراضي إذا كتب نصاً عاماً نعتبره طلباً لزخرفة الخطوط أيضاً أو كرسالة عادية
+                res = decorate_text_fonts(text)
+                await update.message.reply_text(res, parse_mode="Markdown")
 
 def main():
     if not TELEGRAM_TOKEN:
