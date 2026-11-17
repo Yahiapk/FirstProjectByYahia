@@ -209,19 +209,97 @@ async def check_real_available_usernames(count):
     return found_users
 
 # =============================================================================
-# دوال التنزيل المطورة والمصلحة (معالجة بينترست والروابط المختصرة)
+# دوال التنزيل المطورة (RapidAPI ليوتيوب + سكرابنغ بينترست + yt-dlp للباقي)
 # =============================================================================
+def download_youtube_rapidapi(url, is_audio):
+    if not RAPIDAPI_KEY: 
+        return None
+    filename = f"dl_{int(time.time())}_{random.randint(1000,9999)}"
+    ext = "mp3" if is_audio else "mp4"
+    file_path = f"{filename}.{ext}"
+
+    api_url = "https://youtube-media-downloader.p.rapidapi.com/v2/video/details"
+    headers = {"x-rapidapi-key": RAPIDAPI_KEY, "x-rapidapi-host": "youtube-media-downloader.p.rapidapi.com"}
+    
+    video_id_match = re.search(r'(?:v=|\/|shorts\/)([0-9A-Za-z_-]{11})', url)
+    if not video_id_match: 
+        return None
+    video_id = video_id_match.group(1)
+
+    try:
+        res = requests.get(api_url, headers=headers, params={"videoId": video_id}, timeout=10)
+        if res.status_code == 200:
+            data = res.json()
+            download_link = None
+            if is_audio:
+                audios = data.get("audios", {}).get("items", [])
+                if audios: 
+                    download_link = audios[0].get("url")
+            else:
+                videos = data.get("videos", {}).get("items", [])
+                if videos: 
+                    download_link = videos[0].get("url")
+
+            if download_link:
+                r = requests.get(download_link, stream=True, timeout=120)
+                if r.status_code == 200:
+                    with open(file_path, 'wb') as f:
+                        for chunk in r.iter_content(chunk_size=32768):
+                            f.write(chunk)
+                    return file_path
+    except Exception as e:
+        print(f"API Download Error: {e}")
+    return None
+
+def download_pinterest_scraping(url):
+    filename = f"dl_{int(time.time())}_{random.randint(1000,9999)}.mp4"
+    try:
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8"
+        }
+        res = requests.get(url, headers=headers, allow_redirects=True, timeout=15)
+        html_content = res.text
+
+        video_urls = re.findall(r'https?://[^\s<>"]+?\.(?:mp4)', html_content)
+        if not video_urls:
+            video_urls = re.findall(r'"url"\s*:\s*"(https?://[^"]+?\.(?:mp4)[^"]*)"', html_content)
+
+        if video_urls:
+            direct_video_url = video_urls[0].replace(r'\u0026', '&')
+            vid_data = requests.get(direct_video_url, headers=headers, stream=True, timeout=30)
+            if vid_data.status_code == 200:
+                with open(filename, 'wb') as f:
+                    for chunk in vid_data.iter_content(chunk_size=32768):
+                        f.write(chunk)
+                return filename
+    except Exception as e:
+        print(f"Pinterest scraping error: {e}")
+    return None
+
 def download_media_direct(url, is_audio, quality="best"):
-    # فك الرابط المختصر لو كان بينترست
-    if "pin.it" in url:
+    # 1. يوتيوب عبر RapidAPI
+    if "youtube.com" in url or "youtu.be" in url:
+        yt_file = download_youtube_rapidapi(url, is_audio)
+        if yt_file and os.path.exists(yt_file): 
+            return yt_file
+
+    # 2. بينترست عبر السكرابنغ أو فك الروابط
+    if "pin.it" in url or "pinterest.com" in url:
+        pin_file = download_pinterest_scraping(url)
+        if pin_file and os.path.exists(pin_file):
+            return pin_file
         try:
             resp = requests.get(url, allow_redirects=True, timeout=10)
             url = resp.url
+            pin_file2 = download_pinterest_scraping(url)
+            if pin_file2 and os.path.exists(pin_file2):
+                return pin_file2
         except:
             pass
 
+    # 3. باقي المنصات (تيك توك، انستا، إلخ) عبر yt-dlp
     filename = f"dl_{int(time.time())}_{random.randint(1000,9999)}"
-    
     ydl_opts = {
         'outtmpl': f'{filename}.%(ext)s',
         'quiet': True,
@@ -233,24 +311,21 @@ def download_media_direct(url, is_audio, quality="best"):
 
     if is_audio:
         ydl_opts['format'] = 'bestaudio/best'
-        bitrate = '320' if quality == '320' else '128'
+        bitrate = '320' if quality == '320' else '192'
         ydl_opts['postprocessors'] = [{
             'key': 'FFmpegExtractAudio',
             'preferredcodec': 'mp3',
             'preferredquality': bitrate,
         }]
     else:
-        if "pinterest.com" in url or "pin.it" in url:
-            ydl_opts['format'] = 'best/bestvideo+bestaudio'
+        if quality == '360':
+            ydl_opts['format'] = 'best[height<=360]/best'
+        elif quality == '720':
+            ydl_opts['format'] = 'best[height<=720]/best'
+        elif quality == '1080':
+            ydl_opts['format'] = 'best[height<=1080]/best'
         else:
-            if quality == '360':
-                ydl_opts['format'] = 'best[height<=360]/best'
-            elif quality == '720':
-                ydl_opts['format'] = 'best[height<=720]/best'
-            elif quality == '1080':
-                ydl_opts['format'] = 'best[height<=1080]/best'
-            else:
-                ydl_opts['format'] = 'bestvideo+bestaudio/best/best'
+            ydl_opts['format'] = 'bestvideo+bestaudio/best/best'
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -363,7 +438,7 @@ def decorate_text_fonts(text):
     mono_map = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
                              "𝚊𝚋𝚌𝚍𝚎𝚏𝚐𝚑𝚒𝚓𝚔𝚕𝚖𝚗𝚘𝚙𝚚𝚛𝚜𝚝𝚞𝚟𝚠🇽𝚢𝚣𝙰𝙱𝙲𝙳𝙴𝙵𝙶𝙷𝙸𝙹𝙺𝙻𝙼𝙽𝙾𝙿𝚀𝚁𝚂𝚃𝚄𝚅𝚆𝚇𝚈𝚉𝟶𝟷𝟸𝟹𝟺𝟻𝟼𝟽𝟾𝟿")
     bubble_map = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
-                               "ⓐⓑⓒⓓⓔⓕⓖⓗⓘⓙⓚⓛⓜⓝⓞⓟⓠⓡⓢⓣⓤⓥⓦⓧⓨⓩⒶⒷⒸⒹⒺⒻⒼⒽⒾⒿⓀⓁⓂⓃⓄⓅⓆⓇⓈⓉⓊⓋⓌⓍⓎⓏ⓪①②③④⑤⑥⑦⑧⑨")
+                               "ⓐⓑⓒⓓⓔⓕⓖⓗⓘⓙⓚⓛⓜⓝⓞⓟⓠⓡⓢⓣⓤⓥⓦⓧⓨⓩⒶⒷⒸⒹⒺⒻⒼⒽⒾⒿⓀⓁⓂⓃ𝄄ⓄⓅⓆⓇⓈⓉⓊⓋⓌⓍⓎⓏ⓪①②③④⑤⑥⑦⑧⑨")
 
     ar_fancy = text.replace("ا", "آ").replace("ب", "بّ").replace("د", "دّ").replace("ر", "رّ").replace("س", "سۦ").replace("م", "مُ")
     ar_spaced = " ".join(list(text))
@@ -440,7 +515,7 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
     query = update.callback_query
     user_id = query.from_user.id
     if user_id in banned_users:
-        await query.answer("أنت محظور من استخدام هذا البوت ❌", show_alert=True)
+        await query.answer("أنت محظور من استخدام البوت ❌", show_alert=True)
         return
 
     await query.answer()
@@ -503,11 +578,10 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
             "pin": "تنزيل فيديو بينترست"
         }
         
-        # إذا كان بينترست نتخطى اختيار الجودة لأنه لا يحتاجها ونطلب الرابط مباشرة
         if mode == "pin":
             user_quality[user_id] = "best"
             await query.message.reply_text(f"تم اختيار وضع: **{mode_names.get(mode, mode)}**\n\nأرسل الرابط الآن للتحميل:", parse_mode="Markdown")
-        elif "audio" in mode:
+        elif "audio" in mode or mode == "tt_audio" or mode == "yt_audio":
             await query.message.reply_text(f"تم اختيار وضع: **{mode_names.get(mode, mode)}**\n\nاختر جودة الصوت المطلوبة:", reply_markup=get_audio_quality_keyboard(), parse_mode="Markdown")
         else:
             await query.message.reply_text(f"تم اختيار وضع: **{mode_names.get(mode, mode)}**\n\nاختر جودة الفيديو المطلوبة:", reply_markup=get_video_quality_keyboard(), parse_mode="Markdown")
@@ -625,7 +699,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             quality = user_quality.get(user_id, "best")
             is_audio = "audio" in mode or mode == "tt_audio" or mode == "yt_audio"
             
-            # إذا اختار بينترست نتأكد أن الوضع مخصص للفيديو بغض النظر عن الجودة
             if mode == "pin":
                 is_audio = False
 
