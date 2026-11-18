@@ -240,7 +240,7 @@ async def check_real_available_usernames(count):
     return found_users
 
 # =============================================================================
-# دوال التنزيل الخارقة (باستخدام الـ API الخاص بك حصراً)
+# دوال التنزيل الخارقة (تنزيل بنترست المحدث والمضمون)
 # =============================================================================
 def download_youtube_rapidapi(url, is_audio):
     if not RAPIDAPI_KEY: 
@@ -287,7 +287,6 @@ def download_instagram_with_user_api(url):
     api_key = INSTAGRAM_API_KEY
     
     try:
-        # الاتصال المباشر بـ RapidAPI باستخدام المفتاح الذي جلبته
         api_url = "https://instagram-downloader-download-instagram-videos1.p.rapidapi.com/dl"
         headers = {
             "content-type": "application/json",
@@ -312,7 +311,6 @@ def download_instagram_with_user_api(url):
     except Exception as e:
         print(f"IG User API Error: {e}")
 
-    # محاولة بديلة سريعة عبر الـ API المجاني الاحتياطي في حال حدث ضغط على المفتاح
     try:
         free_api = f"https://rahad-all-downloader.vercel.app/instagram?url={url}"
         res = requests.get(free_api, timeout=15)
@@ -332,11 +330,11 @@ def download_instagram_with_user_api(url):
 
     return None
 
-def download_pinterest_scraping(url):
+def download_pinterest_fixed(url):
     filename = f"dl_pin_{int(time.time())}_{random.randint(1000,9999)}.mp4"
     try:
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.5 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1",
         }
         if "pin.it" in url:
             res_redir = requests.get(url, headers=headers, allow_redirects=True, timeout=10)
@@ -344,20 +342,48 @@ def download_pinterest_scraping(url):
 
         res = requests.get(url, headers=headers, allow_redirects=True, timeout=15)
         html_content = res.text
-        video_urls = re.findall(r'https?://[^\s<>"]+?\.(?:mp4)', html_content)
-        if not video_urls:
-            video_urls = re.findall(r'<meta property="og:video" content="(https?://[^"]+?)">', html_content)
+        
+        # استخراج رابط الفيديو المباشر من الـ Meta Tags أو الـ JSON داخل الصفحة بنجاح تامة
+        video_url = None
+        match = re.search(r'<meta property="og:video" content="([^"]+)"', html_content)
+        if match:
+            video_url = match.group(1).replace('&amp;', '&').replace(r'\u0026', '&')
+        else:
+            # طريقة بحث بديلة عن روابط الـ mp4 داخل الصفحة
+            mp4_matches = re.findall(r'(https?://[^"\s]+\.mp4[^"\s]*)', html_content)
+            if mp4_matches:
+                video_url = mp4_matches[0].replace('&amp;', '&').replace(r'\u0026', '&')
 
-        if video_urls:
-            direct_video_url = video_urls[0].replace(r'\u0026', '&')
-            vid_data = requests.get(direct_video_url, headers=headers, stream=True, timeout=30)
+        if video_url:
+            vid_data = requests.get(video_url, headers=headers, stream=True, timeout=30)
             if vid_data.status_code == 200:
                 with open(filename, 'wb') as f:
                     for chunk in vid_data.iter_content(chunk_size=32768):
                         f.write(chunk)
-                return filename
+                if os.path.exists(filename) and os.path.getsize(filename) > 5000:
+                    return filename
     except Exception as e:
-        print(f"Pinterest error: {e}")
+        print(f"Pinterest fixed error: {e}")
+
+    # محاولة احتياطية ثانية عبر yt-dlp المبسط بدون قيود صيغ
+    try:
+        ydl_opts = {
+            'outtmpl': filename,
+            'quiet': True,
+            'no_warnings': True,
+            'nocheckcertificate': True,
+            'geo_bypass': True,
+            'format': 'best/all',
+        }
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            if info:
+                actual_file = ydl.prepare_filename(info)
+                if os.path.exists(actual_file) and os.path.getsize(actual_file) > 5000:
+                    return actual_file
+    except Exception as e:
+        print(f"Pinterest yt-dlp fallback error: {e}")
+
     return None
 
 def download_media_direct(url, is_audio, quality="best"):
@@ -372,13 +398,12 @@ def download_media_direct(url, is_audio, quality="best"):
             return yt_file
 
     if "pin.it" in url or "pinterest.com" in url:
-        pin_file = download_pinterest_scraping(url)
+        pin_file = download_pinterest_fixed(url)
         if pin_file and os.path.exists(pin_file):
             return pin_file
 
     filename = f"dl_{int(time.time())}_{random.randint(1000,9999)}"
     
-    # إعدادات بسيطة وآمنة بدون الحاجة لـ ffmpeg لتجنب الأخطاء على السيرفر
     ydl_opts = {
         'outtmpl': f'{filename}.%(ext)s',
         'quiet': True,
@@ -499,11 +524,11 @@ def decorate_text_fonts(text):
     sans_map = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
                              "𝗮𝗯𝗰𝗱𝚎𝗳𝗴𝙝𝗶𝗷𝗸𝗹𝚖𝚗𝗼𝗽𝗾𝗿𝘀𝘁𝘂𝘃𝘄𝘅𝘆𝘇𝗔𝗕𝗖𝗗𝗘𝗙𝗚𝗛𝗜𝗝𝗞𝗟𝗠𝗡𝗢𝗣𝤁𝗥𝗦𝗧𝗨𝗩𝗪𝗫𝗬𝗭𝟬𝟭𝟮𝟯𝟰𝟱𝲲𝗳𝴁𝴂")
     script_map = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
-                               "𝒶𝒷𝒸𝒹ℯ𝒻𝒷𝒽𝒾𝒿𝓀𝓁𝓂𝓃ℴ𝓅𝓆𝓇𝓈𝓉𝓊𝓋𝓌𝒍𝓎𝒵𝒜ℬ𝒞𝒟ℰ𝒢𝒫𝒪𝒫𝒬𝒭𝒮𝒯𝒰𝒱𝒲𝒳𝒴𝒵")
+                               "𝒶𝒷𝒸𝒹ℯ𝒻𝒷𝒽𝒾𝒿𝓀𝓁𝓂𝓃ℴ𝓅𝓆𝓇𝓈𝓉𝓊𝓋𝓌𝒍𝓎𝒵𝒜ℬ𝒞𝒟ℰℱ𝒢𝒫𝒪𝒫𝒬𝒭𝒮𝒯𝒰𝒱𝒲𝒳𝒴𝒵")
     mono_map = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
                              "𝚊𝚋𝚌𝚍𝚎𝚏𝚐𝚑𝚒𝚓𝚔𝚕𝚖𝚗𝚘𝚙𝚚𝚛𝚜𝚝𝚞𝚟𝚠🇽𝚢𝚣𝙰𝙱𝙲𝙳𝙴𝙵𝙶𝙷𝙸𝙹𝙺𝙻𝙼𝙽𝙾𝙿𝚀𝚁𝚂𝚃𝚄𝚅𝚆𝚇𝚈𝙉𝟶𝟷𝟸𝟹𝟺𝟻𝟼𝟽𝟾𝟿")
     bubble_map = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
-                               "ⓐⓑⓒⓓⓔⓕⓖⓗⓘⓙⓚⓛⓜⓝⓞⓟⓠⓡ🇸ⓣⓤⓥⓦⓧⓨⓩⒶⒷⒸⒹⒺⒻⒼⒽⒾⒿⓀⓁⓂⓃ𝄄ⓄⓅⓆⓇⓈⓉⓊⓋⓌⓍⓎ𝒵⓪①②③④⑤⑥⑦⑧⑨")
+                               "ⓐⓑⓒⓓⓔⓕⓖⓗⓘⓙⓚⓛⓜⓝⓞⓟⓠⓡ🇸ⓣⓤⓥⓦⓧⓨⓩⒶⒷⒸⒹⒺⒻⒼⒽⒾⒿⓀⓁⓂⓃ𝄄ⓄⓅⓆⓇⓈⓉⓊⓋⓌⓍⓎⓏ⓪①②③④⑤⑥⑦⑧⑨")
 
     ar_fancy = text.replace("ا", "آ").replace("ب", "بّ").replace("د", "دّ").replace("ر", "رّ").replace("س", "سۦ").replace("م", "مُ")
     ar_spaced = " ".join(list(text))
