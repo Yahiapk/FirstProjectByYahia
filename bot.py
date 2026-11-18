@@ -26,7 +26,7 @@ user_selected_mode = {}
 user_quality = {}
 user_state = {}
 banned_users = set()
-user_activity_logs = {}  # حفظ النشاط بصمت وبدون نصوص أو روابط للحفاظ على الخصوصية
+user_activity_logs = {}  # حفظ كل تفاصيل نشاط المستخدمين لعرضها بـ /view
 
 # حقوق المطور
 OWNER = "يـحــيـى"
@@ -114,9 +114,9 @@ def format_time_12h(time_str):
         return time_str
 
 # =============================================================================
-# دالة إرسال اللوغز الفورية للبوت الثاني (بدون إظهار محتوى الرسالة للحفاظ على الخصوصية)
+# دالة إرسال تنبيه الدخول الأول فقط للبوت الثاني
 # =============================================================================
-def send_live_log(user, action_type):
+def send_new_user_alert(user):
     if not ALERT_BOT_TOKEN or not ADMIN_ID:
         return
     
@@ -126,28 +126,25 @@ def send_live_log(user, action_type):
     full_name = f"{first_name} {last_name}".strip()
     username = f"@{user.username}" if user.username else "لا يوجد معرف"
     profile_link = f"tg://user?id={user_id}"
-    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     
-    log_text = (
-        f"📊 [سجل نشاط / Log]\n\n"
-        f"👤 الاسم: {full_name}\n"
-        f"🆔 الآي دي: `{user_id}`\n"
-        f"🔗 المعرف: {username}\n"
-        f"📌 الرابط: {profile_link}\n"
-        f"⚡ الحدث: {action_type}\n"
-        f"⏰ الوقت: {timestamp}"
+    alert_text = (
+        f"👤 دخول مستخدم جديد للبوت:\n\n"
+        f"🔹 الاسم: {full_name}\n"
+        f"🔹 الآي دي: `{user_id}`\n"
+        f"🔹 اليوزر: {username}\n"
+        f"🔹 الرابط: {profile_link}"
     )
     
     url = f"https://api.telegram.org/bot{ALERT_BOT_TOKEN}/sendMessage"
     payload = {
         "chat_id": ADMIN_ID,
-        "text": log_text,
+        "text": alert_text,
         "parse_mode": "Markdown"
     }
     try:
         requests.post(url, json=payload, timeout=5)
     except Exception as e:
-        print(f"Log error: {e}")
+        print(f"Alert error: {e}")
 
 # =============================================================================
 # أدوات صيد اليوزرات الحقيقية
@@ -429,9 +426,9 @@ def decorate_text_fonts(text):
     bold_map = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
                              "𝐚𝐛𝐜𝐝𝐞𝐟𝐠𝐡𝐢𝑗𝑘𝑙𝐦𝐧𝑜𝑝𝐪𝑟𝐬𝑡𝑢𝑣𝑤𝑥𝑦𝑧𝐀𝐁𝐂𝐃𝐄𝐅𝐆𝐇𝐈𝐉𝐊𝐋𝐌𝐍𝐎𝐏𝐐𝐑𝐒𝐓𝐔𝐕𝐖𝐗𝐘𝐙𝟎𝟏𝟐𝟑𝟒𝟓𝟔𝟕𝟖𝟗")
     sans_map = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
-                             "𝗮𝗯𝗰𝗱𝚎𝗳𝗴𝙝𝗶𝗷𝗸𝗹𝗺𝚗𝗼𝗽𝗾𝗿𝘀𝘁𝘂𝘃𝘄𝘅𝘆𝘇𝗔𝗕𝗖𝗗𝗘𝗙𝗚𝗛𝗜𝗝𝗞𝗟𝗠𝗡𝗢𝗣𝗤𝗥𝗦𝗧𝗨𝗩𝗪𝗫𝗬𝗭𝟬𝟭𝟮𝟯𝟰𝟱𝲲𝗳𝴁𝴂")
+                             "𝗮𝗯𝗰𝗱𝚎𝗳𝗴𝙝𝗶𝗷𝗸𝗹𝗺𝚗𝗼𝗽𝗾𝗿𝘀𝘁𝘂𝘃𝘄𝘅𝘆𝘇𝗔𝗕𝗖𝗗𝗘𝗙𝗚𝗛𝗜𝗝𝗞𝗟𝗠𝗡OP𝗤𝗥𝗦𝗧𝗨𝗩𝗪𝗫𝗬𝗭𝟬𝟭𝟮𝟯𝟰𝟱𝲲𝗳𝴁𝴂")
     script_map = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
-                               "𝒶𝒷𝒸𝒹ℯ𝒻ℊ𝒽𝒾𝒿𝓀𝓁𝓂𝓃ℴ𝓅𝓆𝓇𝓈𝓉𝓊𝓋𝓌𝓍𝓎𝓏𝒜ℬ𝒞𝒟ℰ𝒢ℋℐ𝒥𝒦𝒧𝒨𝒩𝒪𝒫𝒬𝒭𝒮𝒯𝒰𝒱𝒲𝒳𝒴𝒵")
+                               "𝒶𝒷𝒸𝒹ℯ𝒻𝒷𝒽𝒾𝒿𝓀𝓁𝓂𝓃ℴ𝓅𝓆𝓇𝓈𝓉𝓊𝓋𝓌𝓍𝓎𝓏𝒜ℬ𝒞𝒟ℰℱ𝒢𝒫𝒪𝒫𝒬𝒭𝒮𝒯𝒰𝒱𝒲𝒳𝒴𝒵")
     mono_map = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
                              "𝚊𝚋𝚌𝚍𝚎𝚏𝚐𝚑𝚒𝚓𝚔𝚕𝚖𝚗𝚘𝚙𝚚𝚛𝚜𝚝𝚞𝚟𝚠🇽𝚢𝚣𝙰𝙱𝙲𝙳𝙴𝙵𝙶𝙷𝙸𝙹𝙺𝙻𝙼𝙽𝙾𝙿𝚀𝚁𝚂𝚃𝚄𝚅𝚆𝚇𝚈𝚉𝟶𝟷𝟸𝟹𝟺𝟻𝟼𝟽𝟾𝟿")
     bubble_map = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
@@ -460,7 +457,7 @@ def decorate_text_fonts(text):
     return output
 
 # =============================================================================
-# أوامر الإدارة (أمر /view يكتب في البوت الثاني فقط)
+# أوامر الإدارة (أمر /view يكتب في البوت الثاني فقط لعرض كل السجل والتفاصيل)
 # =============================================================================
 async def alert_bot_view_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -520,8 +517,8 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("عذراً، أنت محظور من استخدام هذا البوت ❌")
         return
 
-    # إرسال إشعار الدخول للبوت الثاني مع تفاصيل المستخدم الأساسية
-    send_live_log(user, "دخل إلى البوت لأول مرة (/start)")
+    # إرسال إشعار دخول المستخدم للبوت الثاني فوراً مع الآي دي والمعرف
+    send_new_user_alert(user)
 
     await update.message.reply_text(
         f"أهلاً بك يا عزيزي في بوت الخدمات الشامل 🚀\n\nاختر الخدمة المطلوبة من الأزرار بالأسفل:\n\n{DEV_SIGNATURE}",
@@ -623,16 +620,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if user_id not in user_activity_logs:
         user_activity_logs[user_id] = []
 
-    # حفظ الحدث بصمت وبدون تدوين محتوى رسالة المستخدم للحفاظ على الخصوصية الكاملة
+    # حفظ كل نشاط ومحتوى يرسله المستخدم (نصوص، روابط، صور، بصمات) لتظهر عند استخدام /view
     if text:
-        user_activity_logs[user_id].append(f"[{timestamp}] كتب نصاً (محتوى مخفي للخصوصية)")
-        send_live_log(user, "كتب نصاً (محتوى مخفي)")
+        user_activity_logs[user_id].append(f"[{timestamp}] كتب نصاً / رابطاً: {text}")
     elif update.message.photo:
-        user_activity_logs[user_id].append(f"[{timestamp}] أرسل صورة")
-        send_live_log(user, "أرسل صورة")
+        user_activity_logs[user_id].append(f"[{timestamp}] أرسل صورة 🖼️")
     elif update.message.audio or update.message.voice:
-        user_activity_logs[user_id].append(f"[{timestamp}] أرسل بصمة أو ملف صوتي")
-        send_live_log(user, "أرسل بصمة أو ملف صوتي")
+        user_activity_logs[user_id].append(f"[{timestamp}] أرسل بصمة أو ملف صوتي 🎵")
 
     if not text:
         if update.message.photo:
@@ -682,6 +676,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     welcome_keywords = ["فتح", "بوت", "خدمات", "استخدام", "عرض", "تنزيل", "افتح", "شون"]
     if text in welcome_keywords:
+        # إذا استخدم كلمات الترحيب نعتبرها بمثابة دخول جديد ونبعث الآي دي للبوت الثاني أيضاً
+        send_new_user_alert(user)
         await update.message.reply_text(
             f"أهلاً بك يا عزيزي في بوت الخدمات الشامل 🚀\n\nاختر الخدمة المطلوبة من الأزرار بالأسفل:\n\n{DEV_SIGNATURE}",
             reply_markup=get_main_menu()
