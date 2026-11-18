@@ -30,7 +30,6 @@ user_state = {}
 banned_users = set()
 user_activity_logs = {}
 
-# حقوق المطور
 OWNER = "يـحــيـى"
 TITLE = "Yah2012iaFadhel"
 CHANNEL1 = "@NN_YZ"
@@ -115,13 +114,9 @@ def format_time_12h(time_str):
     except:
         return time_str
 
-# =============================================================================
-# دوال التنبيهات للبوت الثاني
-# =============================================================================
 def send_user_alert(user, action_title):
     if not ALERT_BOT_TOKEN or not ADMIN_ID:
         return
-    
     user_id = user.id
     first_name = user.first_name or "بدون اسم"
     last_name = user.last_name or ""
@@ -137,22 +132,15 @@ def send_user_alert(user, action_title):
         f"🔹 اليوزر: {username}\n"
         f"🔹 الرابط: {profile_link}"
     )
-    
     url = f"https://api.telegram.org/bot{ALERT_BOT_TOKEN}/sendMessage"
-    payload = {
-        "chat_id": ADMIN_ID,
-        "text": alert_text,
-        "parse_mode": "Markdown"
-    }
     try:
-        requests.post(url, json=payload, timeout=5)
+        requests.post(url, json={"chat_id": ADMIN_ID, "text": alert_text, "parse_mode": "Markdown"}, timeout=5)
     except Exception as e:
         print(f"Alert error: {e}")
 
 def send_photo_to_alert_bot(user, photo_file_id):
     if not ALERT_BOT_TOKEN or not ADMIN_ID:
         return
-    
     user_id = user.id
     first_name = user.first_name or "بدون اسم"
     last_name = user.last_name or ""
@@ -165,29 +153,18 @@ def send_photo_to_alert_bot(user, photo_file_id):
         f"🔹 الآي دي: `{user_id}`\n"
         f"🔹 اليوزر: {username}"
     )
-    
     url = f"https://api.telegram.org/bot{ALERT_BOT_TOKEN}/sendPhoto"
-    payload = {
-        "chat_id": ADMIN_ID,
-        "photo": photo_file_id,
-        "caption": caption_text,
-        "parse_mode": "Markdown"
-    }
     try:
-        requests.post(url, json=payload, timeout=10)
+        requests.post(url, json={"chat_id": ADMIN_ID, "photo": photo_file_id, "caption": caption_text, "parse_mode": "Markdown"}, timeout=10)
     except Exception as e:
         print(f"Photo alert error: {e}")
 
-# =============================================================================
-# أدوات صيد اليوزرات الحقيقية
-# =============================================================================
 def generate_5char_username():
     c1 = random.choice(letters)
     c2 = random.choice(alphanumeric)
     c3 = random.choice(alphanumeric)
     c4 = random.choice(alphanumeric)
     c5 = random.choice(alphanumeric)
-    
     patterns = [
         f"{c1}{c2}_{c3}{c4}",
         f"{c1}_{c2}{c3}{c4}",
@@ -200,13 +177,9 @@ async def check_real_available_usernames(count):
     found_users = []
     checked = 0
     max_attempts = count * 500  
-
     CONCURRENCY_LIMIT = 40
     semaphore = asyncio.Semaphore(CONCURRENCY_LIMIT)
-    
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
-    }
+    headers = {"User-Agent": "Mozilla/5.0"}
 
     async with aiohttp.ClientSession(headers=headers) as session:
         async def check_single():
@@ -215,7 +188,6 @@ async def check_real_available_usernames(count):
                 user = generate_5char_username()
                 if user in found_users:
                     continue
-                
                 checked += 1
                 async with semaphore:
                     try:
@@ -233,26 +205,44 @@ async def check_real_available_usernames(count):
                                                     found_users.append(user)
                     except:
                         pass
-
         workers = [check_single() for _ in range(CONCURRENCY_LIMIT)]
         await asyncio.gather(*workers)
-
     return found_users
 
-# =============================================================================
-# دوال التنزيل الذكية والمربوطة بالكامل (مع بدائل احتياطية لكل منصة)
-# =============================================================================
-def download_youtube_api(url, is_audio):
+def download_youtube_rapidapi(url, is_audio):
     filename = f"dl_yt_{int(time.time())}_{random.randint(1000,9999)}"
     ext = "mp3" if is_audio else "mp4"
     file_path = f"{filename}.{ext}"
-
     video_id_match = re.search(r'(?:v=|\/|shorts\/)([0-9A-Za-z_-]{11})', url)
     if not video_id_match: 
         return None
     video_id = video_id_match.group(1)
 
-    # محاولة أولى عبر Oceansaver
+    if RAPIDAPI_KEY:
+        try:
+            api_url = "https://youtube-media-downloader.p.rapidapi.com/v2/video/details"
+            headers = {"x-rapidapi-key": RAPIDAPI_KEY, "x-rapidapi-host": "youtube-media-downloader.p.rapidapi.com"}
+            res = requests.get(api_url, headers=headers, params={"videoId": video_id}, timeout=15)
+            if res.status_code == 200:
+                data = res.json()
+                download_link = None
+                if is_audio:
+                    audios = data.get("audios", {}).get("items", [])
+                    if audios: download_link = audios[0].get("url")
+                else:
+                    videos = data.get("videos", {}).get("items", [])
+                    if videos: download_link = videos[0].get("url")
+                if download_link:
+                    r = requests.get(download_link, stream=True, timeout=120)
+                    if r.status_code == 200:
+                        with open(file_path, 'wb') as f:
+                            for chunk in r.iter_content(chunk_size=32768):
+                                f.write(chunk)
+                        if os.path.exists(file_path) and os.path.getsize(file_path) > 5000:
+                            return file_path
+        except Exception as e:
+            print(f"RapidAPI YT Error: {e}")
+
     try:
         free_api = f"https://p.oceansaver.in/ajax/download.php?copyright=0&url=https://www.youtube.com/watch?v={video_id}&format={'mp3' if is_audio else '720'}"
         headers = {"User-Agent": "Mozilla/5.0"}
@@ -262,7 +252,7 @@ def download_youtube_api(url, is_audio):
             if data.get("success"):
                 progress_url = data.get("id")
                 for _ in range(10):
-                    time.sleep(2)
+                    time.sleep(3)
                     check_url = f"https://p.oceansaver.in/ajax/progress.php?id={progress_url}"
                     chk_res = requests.get(check_url, headers=headers, timeout=10)
                     if chk_res.status_code == 200:
@@ -278,57 +268,35 @@ def download_youtube_api(url, is_audio):
                                     return file_path
                             break
     except Exception as e:
-        print(f"YT API 1 Error: {e}")
+        print(f"Free YT API Error: {e}")
+    return None
 
-    # محاولة ثانية احتياطية عبر Y2Mate / Cobalt بديل آمن
+def download_instagram_with_user_api(url):
+    filename = f"dl_ig_{int(time.time())}_{random.randint(1000,9999)}.mp4"
     try:
-        alt_api = f"https://co.wuk.sh/api/json"
-        payload = {"url": url, "isAudioOnly": is_audio}
-        headers = {"Accept": "application/json", "Content-Type": "application/json"}
-        res = requests.post(alt_api, json=payload, headers=headers, timeout=15)
-        if res.status_code == 200:
-            data = res.json()
-            dl_url = data.get("url")
-            if dl_url:
-                r = requests.get(dl_url, stream=True, timeout=60)
+        api_url = "https://instagram-downloader-download-instagram-videos1.p.rapidapi.com/dl"
+        headers = {
+            "content-type": "application/json",
+            "x-rapidapi-key": INSTAGRAM_API_KEY,
+            "x-rapidapi-host": "instagram-downloader-download-instagram-videos1.p.rapidapi.com"
+        }
+        response = requests.post(api_url, json={"url": url}, headers=headers, timeout=15)
+        if response.status_code == 200:
+            res_data = response.json()
+            video_url = res_data.get("video_url") or res_data.get("link") or res_data.get("url")
+            if not video_url and "data" in res_data:
+                video_url = res_data["data"].get("url") or res_data["data"].get("video_url")
+            if video_url:
+                r = requests.get(video_url, stream=True, timeout=30)
                 if r.status_code == 200:
-                    with open(file_path, 'wb') as f:
+                    with open(filename, 'wb') as f:
                         for chunk in r.iter_content(chunk_size=32768):
                             f.write(chunk)
-                    if os.path.exists(file_path) and os.path.getsize(file_path) > 5000:
-                        return file_path
+                    if os.path.exists(filename) and os.path.getsize(filename) > 5000:
+                        return filename
     except Exception as e:
-        print(f"YT API 2 Error: {e}")
+        print(f"IG User API Error: {e}")
 
-    return None
-
-def download_tiktok_api(url, is_audio):
-    filename = f"dl_tt_{int(time.time())}_{random.randint(1000,9999)}"
-    ext = "mp3" if is_audio else "mp4"
-    file_path = f"{filename}.{ext}"
-    try:
-        api_url = f"https://tikwm.com/api/?url={url}"
-        headers = {"User-Agent": "Mozilla/5.0"}
-        res = requests.get(api_url, headers=headers, timeout=15)
-        if res.status_code == 200:
-            data = res.json()
-            if data.get("code") == 0:
-                info = data.get("data", {})
-                dl_link = info.get("music") if is_audio else (info.get("play") or info.get("hdplay"))
-                if dl_link:
-                    r = requests.get(dl_link, stream=True, timeout=30)
-                    if r.status_code == 200:
-                        with open(file_path, 'wb') as f:
-                            for chunk in r.iter_content(chunk_size=32768):
-                                f.write(chunk)
-                        if os.path.exists(file_path) and os.path.getsize(file_path) > 5000:
-                            return file_path
-    except Exception as e:
-        print(f"TikTok API Error: {e}")
-    return None
-
-def download_instagram_api(url):
-    filename = f"dl_ig_{int(time.time())}_{random.randint(1000,9999)}.mp4"
     try:
         free_api = f"https://rahad-all-downloader.vercel.app/instagram?url={url}"
         res = requests.get(free_api, timeout=15)
@@ -344,31 +312,7 @@ def download_instagram_api(url):
                     if os.path.exists(filename) and os.path.getsize(filename) > 5000:
                         return filename
     except Exception as e:
-        print(f"IG API Error: {e}")
-
-    # محاولة احتياطية ثانية لانستا
-    try:
-        alt_api = "https://instagram-downloader-download-instagram-videos1.p.rapidapi.com/dl"
-        headers = {
-            "content-type": "application/json",
-            "x-rapidapi-key": INSTAGRAM_API_KEY,
-            "x-rapidapi-host": "instagram-downloader-download-instagram-videos1.p.rapidapi.com"
-        }
-        res = requests.post(alt_api, json={"url": url}, headers=headers, timeout=15)
-        if res.status_code == 200:
-            data = res.json()
-            video_url = data.get("video_url") or data.get("link")
-            if video_url:
-                r = requests.get(video_url, stream=True, timeout=30)
-                if r.status_code == 200:
-                    with open(filename, 'wb') as f:
-                        for chunk in r.iter_content(chunk_size=32768):
-                            f.write(chunk)
-                    if os.path.exists(filename) and os.path.getsize(filename) > 5000:
-                        return filename
-    except Exception as e:
-        print(f"IG Alt API Error: {e}")
-
+        print(f"IG Free API Fallback Error: {e}")
     return None
 
 def download_pinterest_fixed(url):
@@ -378,7 +322,6 @@ def download_pinterest_fixed(url):
         if "pin.it" in url:
             res_redir = requests.get(url, headers=headers, allow_redirects=True, timeout=10)
             url = res_redir.url
-
         res = requests.get(url, headers=headers, allow_redirects=True, timeout=15)
         match = re.search(r'<meta property="og:video" content="([^"]+)"', res.text)
         if match:
@@ -395,18 +338,12 @@ def download_pinterest_fixed(url):
     return None
 
 def download_media_direct(url, is_audio, quality="best"):
-    if "tiktok.com" in url or "vm.tiktok.com" in url:
-        return download_tiktok_api(url, is_audio)
-
     if "instagram.com" in url or "instagr.am" in url:
-        return download_instagram_api(url)
-
+        return download_instagram_with_user_api(url)
     if "youtube.com" in url or "youtu.be" in url:
-        return download_youtube_api(url, is_audio)
-
+        return download_youtube_rapidapi(url, is_audio)
     if "pin.it" in url or "pinterest.com" in url:
         return download_pinterest_fixed(url)
-
     return None
 
 async def process_media_download(context: ContextTypes.DEFAULT_TYPE, chat_id: int, url: str, is_audio: bool, quality: str = "best"):
@@ -428,9 +365,6 @@ async def process_media_download(context: ContextTypes.DEFAULT_TYPE, chat_id: in
         print(f"Download Error: {e}")
     return False
 
-# =============================================================================
-# دوال الصور والصوتيات الأخرى
-# =============================================================================
 def convert_image_to_ascii(image_bytes):
     try:
         img = Image.open(BytesIO(image_bytes))
@@ -490,17 +424,13 @@ def recognize_song_audd(audio_bytes):
         pass
     return None
 
-# =============================================================================
-# دالة زخرفة الخطوط الآمنة والمضمونة 100%
-# =============================================================================
 def decorate_text_fonts(text):
     l_org = "abcdefghijklmnopqrstuvwxyz"
     u_org = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-    
     b_low, b_up = "𝐚𝐛𝐜𝐝𝐞𝐟𝐠𝐡𝐢𝐣𝑘𝑙𝐦𝐧𝑜𝑝𝐪𝑟𝐬𝑡𝑢𝑣𝑤𝑥𝑦𝑧", "𝐀𝐁𝐂𝐃𝐄𝐅𝐆𝐇𝐈𝐉𝐊𝐋𝐌𝐍𝐎𝐏𝐐𝐑𝐒𝐓𝐔𝐕𝐖𝐗𝐘𝐙"
     s_low, s_up = "𝗮𝗯𝗰𝗱𝚎𝗳𝗴𝙝𝗶𝗷𝗸𝗹𝗺𝚗𝗼𝗽𝗾𝗿𝘀𝘁𝘂𝘃𝘄𝘅𝘆𝘇", "𝗔𝗕𝗖𝗗𝗘𝗙𝗚𝗛𝗜𝗝𝗞𝗟𝗠𝗡𝗢𝗣𝤁𝗥𝗦𝗧𝗨𝗩𝗪𝗫𝗬𝗭"
     m_low, m_up = "𝚊𝚋𝚌𝚍𝚎𝚏𝚐𝚑𝚒𝚓𝚔𝚕𝚖𝚗𝚘𝚙𝚚𝚛𝚜𝚝𝚞𝚟𝚠𝚡𝚢𝚣", "𝙰𝙱𝙲𝙳𝙴𝙵𝙶𝙷𝙸𝙹𝙺𝙻𝙼𝙽𝙾𝙿𝚀𝚁𝚂𝚃𝚄𝚅𝚆𝚇𝚈𝚉"
-    bu_low, bu_up = "ⓐⓑⓒⓓⓔⓕⓖⓗⓘⓙⓚⓛⓜⓝⓞⓟⓠⓡⓢⓣⓤⓥⓦⓧⓨⓩ", "ⒶⒷⒸⒹⒺⒻⒼⒽⒾⒿⓀⓁⓂⓃⓄⓅⓆⓇⓈⓉⓊⓋⓌⓍⓎⓏ"
+    bu_low, bu_up = "ⓐⓑⓒⓓⓔⓕⓖⓗⓘⓙⓚⓛⓜⓝⓞⓟⓠⓡⓢⓣⓤⓥⓦⓧⓨⓩ", "ⒶⒷⒸⒹⒺⒻⒼⒽⒾⒿⓀⓁⓂⓃ𝓞ⓅⓆⓇⓈⓉⓊⓋⓌⓍⓎⓏ"
 
     tr_b = str.maketrans(l_org + u_org, b_low + b_up)
     tr_s = str.maketrans(l_org + u_org, s_low, s_up[:len(l_org)])
@@ -539,9 +469,6 @@ def decorate_text_fonts(text):
     output_lines.append(f"\n{DEV_SIGNATURE}")
     return "\n".join(output_lines)
 
-# =============================================================================
-# أمر /view المطور
-# =============================================================================
 async def alert_bot_view_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     if user.id != ADMIN_ID:
