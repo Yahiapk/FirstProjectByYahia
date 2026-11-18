@@ -456,7 +456,7 @@ def decorate_text_fonts(text):
     return output
 
 # =============================================================================
-# أوامر الإدارة (حظر، رفع حظر، وعرض نشاط المستخدمين)
+# أوامر الإدارة (حظر، رفع حظر، وعرض نشاط المستخدمين بـ /view)
 # =============================================================================
 async def ban_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -494,7 +494,7 @@ async def show_user_logs_command(update: Update, context: ContextTypes.DEFAULT_T
     if user.id != ADMIN_ID:
         return
     if not context.args:
-        await update.message.reply_text("يرجى كتابة الآي دي بعد الأمر هكذا:\n`/عرض 123456789`", parse_mode="Markdown")
+        await update.message.reply_text("يرجى كتابة الآي دي بعد الأمر هكذا:\n`/view 123456789`", parse_mode="Markdown")
         return
     try:
         target_id = int(context.args[0])
@@ -616,7 +616,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-    # تسجيل النشاط في الذاكرة لتتم مراجعته عند استخدام /عرض <id>
     if user_id not in user_activity_logs:
         user_activity_logs[user_id] = []
 
@@ -673,7 +672,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         return
 
-    # الكلمات المفتاحية لفتح البوت وإظهار القائمة الرئيسية
     welcome_keywords = ["فتح", "بوت", "خدمات", "استخدام", "عرض", "تنزيل", "افتح", "شون"]
     if text in welcome_keywords:
         await update.message.reply_text(
@@ -682,7 +680,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # الأزرار الرئيسية للقائمة
     if text == "تنزيل الفيديوهات والصوتيات (يوتيوب، تيكتوك، انستا، بينترست)":
         await update.message.reply_text("اختر منصة التحميل المطلوبة:", reply_markup=get_features_keyboard())
 
@@ -746,7 +743,7 @@ def main():
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("ban", ban_command))
     app.add_handler(CommandHandler("unban", unban_command))
-    app.add_handler(CommandHandler("عرض", show_user_logs_command))
+    app.add_handler(CommandHandler("view", show_user_logs_command))
     app.add_handler(CallbackQueryHandler(handle_callback_query))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_handler(MessageHandler(filters.PHOTO | filters.AUDIO | filters.VOICE, handle_message))
