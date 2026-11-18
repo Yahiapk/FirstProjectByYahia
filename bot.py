@@ -240,9 +240,9 @@ async def check_real_available_usernames(count):
     return found_users
 
 # =============================================================================
-# دوال التنزيل الشاملة (يوتيوب، تيك توك، انستغرام، بينترست)
+# دوال التنزيل الذكية والمربوطة بالكامل (مع بدائل احتياطية لكل منصة)
 # =============================================================================
-def download_youtube_rapidapi(url, is_audio):
+def download_youtube_api(url, is_audio):
     filename = f"dl_yt_{int(time.time())}_{random.randint(1000,9999)}"
     ext = "mp3" if is_audio else "mp4"
     file_path = f"{filename}.{ext}"
@@ -252,6 +252,7 @@ def download_youtube_rapidapi(url, is_audio):
         return None
     video_id = video_id_match.group(1)
 
+    # محاولة أولى عبر Oceansaver
     try:
         free_api = f"https://p.oceansaver.in/ajax/download.php?copyright=0&url=https://www.youtube.com/watch?v={video_id}&format={'mp3' if is_audio else '720'}"
         headers = {"User-Agent": "Mozilla/5.0"}
@@ -261,7 +262,7 @@ def download_youtube_rapidapi(url, is_audio):
             if data.get("success"):
                 progress_url = data.get("id")
                 for _ in range(10):
-                    time.sleep(3)
+                    time.sleep(2)
                     check_url = f"https://p.oceansaver.in/ajax/progress.php?id={progress_url}"
                     chk_res = requests.get(check_url, headers=headers, timeout=10)
                     if chk_res.status_code == 200:
@@ -277,7 +278,28 @@ def download_youtube_rapidapi(url, is_audio):
                                     return file_path
                             break
     except Exception as e:
-        print(f"YT API Error: {e}")
+        print(f"YT API 1 Error: {e}")
+
+    # محاولة ثانية احتياطية عبر Y2Mate / Cobalt بديل آمن
+    try:
+        alt_api = f"https://co.wuk.sh/api/json"
+        payload = {"url": url, "isAudioOnly": is_audio}
+        headers = {"Accept": "application/json", "Content-Type": "application/json"}
+        res = requests.post(alt_api, json=payload, headers=headers, timeout=15)
+        if res.status_code == 200:
+            data = res.json()
+            dl_url = data.get("url")
+            if dl_url:
+                r = requests.get(dl_url, stream=True, timeout=60)
+                if r.status_code == 200:
+                    with open(file_path, 'wb') as f:
+                        for chunk in r.iter_content(chunk_size=32768):
+                            f.write(chunk)
+                    if os.path.exists(file_path) and os.path.getsize(file_path) > 5000:
+                        return file_path
+    except Exception as e:
+        print(f"YT API 2 Error: {e}")
+
     return None
 
 def download_tiktok_api(url, is_audio):
@@ -323,6 +345,30 @@ def download_instagram_api(url):
                         return filename
     except Exception as e:
         print(f"IG API Error: {e}")
+
+    # محاولة احتياطية ثانية لانستا
+    try:
+        alt_api = "https://instagram-downloader-download-instagram-videos1.p.rapidapi.com/dl"
+        headers = {
+            "content-type": "application/json",
+            "x-rapidapi-key": INSTAGRAM_API_KEY,
+            "x-rapidapi-host": "instagram-downloader-download-instagram-videos1.p.rapidapi.com"
+        }
+        res = requests.post(alt_api, json={"url": url}, headers=headers, timeout=15)
+        if res.status_code == 200:
+            data = res.json()
+            video_url = data.get("video_url") or data.get("link")
+            if video_url:
+                r = requests.get(video_url, stream=True, timeout=30)
+                if r.status_code == 200:
+                    with open(filename, 'wb') as f:
+                        for chunk in r.iter_content(chunk_size=32768):
+                            f.write(chunk)
+                    if os.path.exists(filename) and os.path.getsize(filename) > 5000:
+                        return filename
+    except Exception as e:
+        print(f"IG Alt API Error: {e}")
+
     return None
 
 def download_pinterest_fixed(url):
@@ -356,7 +402,7 @@ def download_media_direct(url, is_audio, quality="best"):
         return download_instagram_api(url)
 
     if "youtube.com" in url or "youtu.be" in url:
-        return download_youtube_rapidapi(url, is_audio)
+        return download_youtube_api(url, is_audio)
 
     if "pin.it" in url or "pinterest.com" in url:
         return download_pinterest_fixed(url)
@@ -452,12 +498,12 @@ def decorate_text_fonts(text):
     u_org = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
     
     b_low, b_up = "𝐚𝐛𝐜𝐝𝐞𝐟𝐠𝐡𝐢𝐣𝑘𝑙𝐦𝐧𝑜𝑝𝐪𝑟𝐬𝑡𝑢𝑣𝑤𝑥𝑦𝑧", "𝐀𝐁𝐂𝐃𝐄𝐅𝐆𝐇𝐈𝐉𝐊𝐋𝐌𝐍𝐎𝐏𝐐𝐑𝐒𝐓𝐔𝐕𝐖𝐗𝐘𝐙"
-    s_low, s_up = "𝗮𝗯𝗰𝗱𝚎𝗳𝗴𝙝𝗶𝗷𝗸𝗹𝗺𝚗𝗼𝗽𝗾𝗿𝘀𝘁𝘂𝘃𝘄𝘅𝘆𝘇", "𝗔𝗕𝗖𝗗𝗘𝗙𝗚𝗛𝗜𝗝𝗞𝗟𝗠𝗡-𝗢𝗣𝤁𝗥𝗦𝗧𝗨𝗩𝗪𝗫𝗬𝗭"
+    s_low, s_up = "𝗮𝗯𝗰𝗱𝚎𝗳𝗴𝙝𝗶𝗷𝗸𝗹𝗺𝚗𝗼𝗽𝗾𝗿𝘀𝘁𝘂𝘃𝘄𝘅𝘆𝘇", "𝗔𝗕𝗖𝗗𝗘𝗙𝗚𝗛𝗜𝗝𝗞𝗟𝗠𝗡𝗢𝗣𝤁𝗥𝗦𝗧𝗨𝗩𝗪𝗫𝗬𝗭"
     m_low, m_up = "𝚊𝚋𝚌𝚍𝚎𝚏𝚐𝚑𝚒𝚓𝚔𝚕𝚖𝚗𝚘𝚙𝚚𝚛𝚜𝚝𝚞𝚟𝚠𝚡𝚢𝚣", "𝙰𝙱𝙲𝙳𝙴𝙵𝙶𝙷𝙸𝙹𝙺𝙻𝙼𝙽𝙾𝙿𝚀𝚁𝚂𝚃𝚄𝚅𝚆𝚇𝚈𝚉"
     bu_low, bu_up = "ⓐⓑⓒⓓⓔⓕⓖⓗⓘⓙⓚⓛⓜⓝⓞⓟⓠⓡⓢⓣⓤⓥⓦⓧⓨⓩ", "ⒶⒷⒸⒹⒺⒻⒼⒽⒾⒿⓀⓁⓂⓃⓄⓅⓆⓇⓈⓉⓊⓋⓌⓍⓎⓏ"
 
     tr_b = str.maketrans(l_org + u_org, b_low + b_up)
-    tr_s = str.maketrans(l_org + u_org, s_low, s_up[:len(l_org)]) # لتجنب التفاوت
+    tr_s = str.maketrans(l_org + u_org, s_low, s_up[:len(l_org)])
     tr_m = str.maketrans(l_org + u_org, m_low + m_up)
     tr_bu = str.maketrans(l_org + u_org, bu_low + bu_up)
 
@@ -818,8 +864,8 @@ async def main_async():
     await app.start()
     await alert_app.start()
 
-    await app.updater.start_polling()
-    await alert_app.updater.start_polling()
+    await app.updater.start_polling(drop_pending_updates=True)
+    await alert_app.updater.start_polling(drop_pending_updates=True)
 
     print("Both bots are running successfully...")
 
