@@ -239,7 +239,7 @@ async def check_real_available_usernames(count):
     return found_users
 
 # =============================================================================
-# دوال التنزيل الذكية (مع نظام API قوي وخاص لانستغرام)
+# دوال التنزيل الذكية (مع نظام إنستغرام محدث كلياً)
 # =============================================================================
 def download_youtube_rapidapi(url, is_audio):
     if not RAPIDAPI_KEY: 
@@ -281,53 +281,80 @@ def download_youtube_rapidapi(url, is_audio):
         print(f"API Download Error: {e}")
     return None
 
-def download_instagram_api(url):
+def download_instagram_bulletproof(url):
     filename = f"dl_ig_{int(time.time())}_{random.randint(1000,9999)}.mp4"
     try:
-        # استخدام RapidAPI أو Public API قوي ومضمون لتنزيل انستغرام بدون حظر
-        api_url = "https://instagram-downloader-download-instagram-videos-stories1.p.rapidapi.com/v1/social/posts"
-        # إذا ماكو مفتاح RapidAPI، نستخدم محرك سحب مجاني موثوق ومباشر عبر الـ API البديل
-        free_api = f"https://rahad-all-downloader.vercel.app/instagram?url={url}"
+        # إضافة امتداد الـ JSON لجلب بيانات المنشور مباشرة من انستغرام بدون متصفح
+        clean_url = url.split("?")[0].rstrip("/")
+        json_url = f"{clean_url}/?__a=1&__d=dis"
         
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+            "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.5 (KHTML, like Gecko) Mobile/15E148 Instagram 313.0.0.35.115",
+            "Accept": "*/*",
+            "Accept-Language": "en-US,en;q=0.9",
+            "X-IG-App-ID": "936619743392459"
         }
         
-        # تجربة API مجاني سريع وجاهز
-        res = requests.get(free_api, timeout=15)
-        if res.status_code == 200:
+        # المحاولة عبر الـ JSON المباشر
+        res = requests.get(json_url, headers=headers, timeout=10)
+        if res.status_code == 200 and "video_url" in res.text:
             data = res.json()
-            video_url = data.get("result") or data.get("url") or data.get("download_url")
-            if not video_url and "data" in data:
-                video_url = data["data"].get("url") or data["data"].get("video_url")
-                
-            if video_url:
-                vid_data = requests.get(video_url, headers=headers, stream=True, timeout=30)
-                if vid_data.status_code == 200:
-                    with open(filename, 'wb') as f:
-                        for chunk in vid_data.iter_content(chunk_size=32768):
-                            f.write(chunk)
-                    if os.path.exists(filename) and os.path.getsize(filename) > 5000:
-                        return filename
-    except Exception as e:
-        print(f"Instagram API error: {e}")
-
-    # محاولة احتياطية ثانية عبر استخراج البيانات المباشرة من انستا
-    try:
-        clean_url = url.split("?")[0]
-        res = requests.get(clean_url, headers={"User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.5"}, timeout=15)
-        if res.status_code == 200:
-            match = re.search(r'<meta property="og:video" content="([^"]+)"', res.text)
-            if match:
-                vid_url = match.group(1).replace('&amp;', '&').replace(r'\u0026', '&')
-                r = requests.get(vid_url, headers={"User-Agent": "Mozilla/5.0"}, stream=True, timeout=30)
+            vid_url = data.get("items", [{}])[0].get("video_url")
+            if vid_url:
+                r = requests.get(vid_url, headers=headers, stream=True, timeout=30)
                 if r.status_code == 200:
                     with open(filename, 'wb') as f:
                         for chunk in r.iter_content(chunk_size=32768):
                             f.write(chunk)
-                    return filename
+                    if os.path.exists(filename) and os.path.getsize(filename) > 5000:
+                        return filename
     except Exception as e:
-        print(f"Instagram fallback 2 error: {e}")
+        print(f"IG JSON method error: {e}")
+
+    # الطريقة الاحتياطية القوية عبر خدمات سحب بديلة سريعة
+    try:
+        api_endpoints = [
+            f"https://rahad-all-downloader.vercel.app/instagram?url={url}",
+            f"https://co.wuk.sh/api/json"
+        ]
+        
+        # استخدام co.wuk.sh الموثوق عالمياً للتنزيل
+        payload = {"url": url, "vQuality": "max"}
+        headers = {"Accept": "application/json", "Content-Type": "application/json"}
+        response = requests.post("https://co.wuk.sh/api/json", json=payload, headers=headers, timeout=15)
+        if response.status_code == 200:
+            res_data = response.json()
+            download_url = res_data.get("url") or res_data.get("picker", [{}])[0].get("url")
+            if download_url:
+                vid_file = requests.get(download_url, stream=True, timeout=30)
+                if vid_file.status_code == 200:
+                    with open(filename, 'wb') as f:
+                        for chunk in vid_file.iter_content(chunk_size=32768):
+                            f.write(chunk)
+                    if os.path.exists(filename) and os.path.getsize(filename) > 5000:
+                        return filename
+    except Exception as e:
+        print(f"IG API fallback error: {e}")
+
+    # محاولة أخيره عبر استخراج الرابط من الـ Meta باستخدام سكريبت yt-dlp محدث
+    try:
+        ydl_opts = {
+            'outtmpl': f'{filename}',
+            'quiet': True,
+            'no_warnings': True,
+            'nocheckcertificate': True,
+            'geo_bypass': True,
+            'socket_timeout': 15,
+            'extractor_args': {'instagram': {'max_comments': 0}},
+        }
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            if info:
+                actual_file = ydl.prepare_filename(info)
+                if os.path.exists(actual_file):
+                    return actual_file
+    except Exception as e:
+        print(f"IG yt-dlp final error: {e}")
 
     return None
 
@@ -361,7 +388,7 @@ def download_pinterest_scraping(url):
 
 def download_media_direct(url, is_audio, quality="best"):
     if "instagram.com" in url or "instagr.am" in url:
-        ig_file = download_instagram_api(url)
+        ig_file = download_instagram_bulletproof(url)
         if ig_file and os.path.exists(ig_file):
             return ig_file
 
@@ -508,7 +535,7 @@ def decorate_text_fonts(text):
     bold_map = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
                              "𝐚𝐛𝐜𝐝𝐞𝐟𝐠𝐡𝐢𝑗𝑘𝑙𝐦𝐧𝑜𝑝𝐪𝑟𝐬𝑡𝑢𝑣𝑤𝑥𝑦𝑧𝐀𝐁𝐂𝐃𝐄𝐅𝐆𝐇𝐈𝐉𝐊𝐋𝐌𝐍𝐎𝐏𝐐𝐑𝐒𝐓𝐔𝐕𝐖𝐗𝐘𝐙𝟎𝟏𝟐𝟑𝟒𝟓𝟔𝟕𝟖𝟗")
     sans_map = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
-                             "𝗮𝗯𝗰𝗱𝚎𝗳𝗴𝙝𝗶𝗷𝗸𝗹𝗺𝚗𝗼𝗽𝗾𝗿𝘀𝘁𝘂𝘃𝘄𝘅𝘆𝘇𝗔𝗕𝗖𝗗𝗘𝗙𝗚𝗛𝗜𝗝𝗞𝗟𝗠𝗡𝗢𝗣𝗤𝗥𝗦𝗧𝗨𝗩𝗪𝗫𝗬𝗭𝟬𝟭𝟮𝟯𝟰𝟱𝲲𝗳𝴁𝴂")
+                             "𝗮𝗯𝗰𝗱𝚎𝗳𝗴𝙝𝗶𝗷𝗸𝗹𝗺𝚗𝗼𝗽𝗾𝗿𝘀𝘁𝘂𝘃𝘄𝘅𝘆𝘇𝗔𝗕𝗖𝗗𝗘𝗙𝗚𝗛𝗜𝗝𝗞𝗟𝗠𝗡𝗢𝗣𝤁𝗥𝗦𝗧𝗨𝗩𝗪𝗫𝗬𝗭𝟬𝟭𝟮𝟯𝟰𝟱𝲲𝗳𝴁𝴂")
     script_map = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
                                "𝒶𝒷𝒸𝒹ℯ𝒻𝒷𝒽𝒾𝒿𝓀𝓁𝓂𝓃ℴ𝓅𝓆𝓇𝓈𝓉𝓊𝓋𝓌𝒍𝓎𝒵𝒜ℬ𝒞𝒟ℰℱ𝒢𝒫𝒪𝒫𝒬𝒭𝒮𝒯𝒰𝒱𝒲𝒳𝒴𝒵")
     mono_map = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
