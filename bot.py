@@ -209,7 +209,8 @@ async def check_real_available_usernames(count):
         await asyncio.gather(*workers)
     return found_users
 
-def download_youtube_rapidapi(url, is_audio):
+# ==================== دوال التحميل الذكية لكل المنصات (يوتيوب + yt-dlp لباقي المواقع) ====================
+def download_youtube_api(url, is_audio):
     filename = f"dl_yt_{int(time.time())}_{random.randint(1000,9999)}"
     ext = "mp3" if is_audio else "mp4"
     file_path = f"{filename}.{ext}"
@@ -217,31 +218,6 @@ def download_youtube_rapidapi(url, is_audio):
     if not video_id_match: 
         return None
     video_id = video_id_match.group(1)
-
-    if RAPIDAPI_KEY:
-        try:
-            api_url = "https://youtube-media-downloader.p.rapidapi.com/v2/video/details"
-            headers = {"x-rapidapi-key": RAPIDAPI_KEY, "x-rapidapi-host": "youtube-media-downloader.p.rapidapi.com"}
-            res = requests.get(api_url, headers=headers, params={"videoId": video_id}, timeout=15)
-            if res.status_code == 200:
-                data = res.json()
-                download_link = None
-                if is_audio:
-                    audios = data.get("audios", {}).get("items", [])
-                    if audios: download_link = audios[0].get("url")
-                else:
-                    videos = data.get("videos", {}).get("items", [])
-                    if videos: download_link = videos[0].get("url")
-                if download_link:
-                    r = requests.get(download_link, stream=True, timeout=120)
-                    if r.status_code == 200:
-                        with open(file_path, 'wb') as f:
-                            for chunk in r.iter_content(chunk_size=32768):
-                                f.write(chunk)
-                        if os.path.exists(file_path) and os.path.getsize(file_path) > 5000:
-                            return file_path
-        except Exception as e:
-            print(f"RapidAPI YT Error: {e}")
 
     try:
         free_api = f"https://p.oceansaver.in/ajax/download.php?copyright=0&url=https://www.youtube.com/watch?v={video_id}&format={'mp3' if is_audio else '720'}"
@@ -252,7 +228,7 @@ def download_youtube_rapidapi(url, is_audio):
             if data.get("success"):
                 progress_url = data.get("id")
                 for _ in range(10):
-                    time.sleep(3)
+                    time.sleep(2)
                     check_url = f"https://p.oceansaver.in/ajax/progress.php?id={progress_url}"
                     chk_res = requests.get(check_url, headers=headers, timeout=10)
                     if chk_res.status_code == 200:
@@ -268,83 +244,50 @@ def download_youtube_rapidapi(url, is_audio):
                                     return file_path
                             break
     except Exception as e:
-        print(f"Free YT API Error: {e}")
+        print(f"YouTube API Error: {e}")
     return None
 
-def download_instagram_with_user_api(url):
-    filename = f"dl_ig_{int(time.time())}_{random.randint(1000,9999)}.mp4"
-    try:
-        api_url = "https://instagram-downloader-download-instagram-videos1.p.rapidapi.com/dl"
-        headers = {
-            "content-type": "application/json",
-            "x-rapidapi-key": INSTAGRAM_API_KEY,
-            "x-rapidapi-host": "instagram-downloader-download-instagram-videos1.p.rapidapi.com"
-        }
-        response = requests.post(api_url, json={"url": url}, headers=headers, timeout=15)
-        if response.status_code == 200:
-            res_data = response.json()
-            video_url = res_data.get("video_url") or res_data.get("link") or res_data.get("url")
-            if not video_url and "data" in res_data:
-                video_url = res_data["data"].get("url") or res_data["data"].get("video_url")
-            if video_url:
-                r = requests.get(video_url, stream=True, timeout=30)
-                if r.status_code == 200:
-                    with open(filename, 'wb') as f:
-                        for chunk in r.iter_content(chunk_size=32768):
-                            f.write(chunk)
-                    if os.path.exists(filename) and os.path.getsize(filename) > 5000:
-                        return filename
-    except Exception as e:
-        print(f"IG User API Error: {e}")
+def download_ytdlp_universal(url, is_audio):
+    filename = f"dl_uni_{int(time.time())}_{random.randint(1000,9999)}"
+    ydl_opts = {
+        'outtmpl': f'{filename}.%(ext)s',
+        'quiet': True,
+        'no_warnings': True,
+        'nocheckcertificate': True,
+        'geo_bypass': True,
+        'format': 'bestaudio/best' if is_audio else 'best',
+        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+    }
+    if is_audio:
+        ydl_opts['postprocessors'] = [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3', 'preferredquality': '192'}]
 
     try:
-        free_api = f"https://rahad-all-downloader.vercel.app/instagram?url={url}"
-        res = requests.get(free_api, timeout=15)
-        if res.status_code == 200:
-            data = res.json()
-            video_url = data.get("result") or data.get("url") or data.get("download_url")
-            if video_url:
-                r = requests.get(video_url, stream=True, timeout=30)
-                if r.status_code == 200:
-                    with open(filename, 'wb') as f:
-                        for chunk in r.iter_content(chunk_size=32768):
-                            f.write(chunk)
-                    if os.path.exists(filename) and os.path.getsize(filename) > 5000:
-                        return filename
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            if 'entries' in info and len(info['entries']) > 0:
+                info = info['entries'][0]
+            filename_actual = ydl.prepare_filename(info)
+            if is_audio:
+                base, _ = os.path.splitext(filename_actual)
+                if os.path.exists(base + '.mp3'): return base + '.mp3'
+            if os.path.exists(filename_actual): return filename_actual
+            base = os.path.splitext(filename_actual)[0]
+            for ext in ['.mp4', '.mkv', '.webm', '.mp3', '.m4a']:
+                if os.path.exists(base + ext): return base + ext
     except Exception as e:
-        print(f"IG Free API Fallback Error: {e}")
-    return None
-
-def download_pinterest_fixed(url):
-    filename = f"dl_pin_{int(time.time())}_{random.randint(1000,9999)}.mp4"
-    try:
-        headers = {"User-Agent": "Mozilla/5.0"}
-        if "pin.it" in url:
-            res_redir = requests.get(url, headers=headers, allow_redirects=True, timeout=10)
-            url = res_redir.url
-        res = requests.get(url, headers=headers, allow_redirects=True, timeout=15)
-        match = re.search(r'<meta property="og:video" content="([^"]+)"', res.text)
-        if match:
-            video_url = match.group(1).replace('&amp;', '&')
-            r = requests.get(video_url, stream=True, timeout=30)
-            if r.status_code == 200:
-                with open(filename, 'wb') as f:
-                    for chunk in r.iter_content(chunk_size=32768):
-                        f.write(chunk)
-                if os.path.exists(filename) and os.path.getsize(filename) > 5000:
-                    return filename
-    except Exception as e:
-        print(f"Pinterest error: {e}")
+        print(f"yt-dlp universal error: {e}")
     return None
 
 def download_media_direct(url, is_audio, quality="best"):
-    if "instagram.com" in url or "instagr.am" in url:
-        return download_instagram_with_user_api(url)
     if "youtube.com" in url or "youtu.be" in url:
-        return download_youtube_rapidapi(url, is_audio)
-    if "pin.it" in url or "pinterest.com" in url:
-        return download_pinterest_fixed(url)
-    return None
+        res = download_youtube_api(url, is_audio)
+        if res: return res
+        return download_ytdlp_universal(url, is_audio)
+    else:
+        # انستغرام، تيك توك، بينترست وأي رابط آخر
+        res = download_ytdlp_universal(url, is_audio)
+        if res: return res
+        return None
 
 async def process_media_download(context: ContextTypes.DEFAULT_TYPE, chat_id: int, url: str, is_audio: bool, quality: str = "best"):
     try:
@@ -430,7 +373,7 @@ def decorate_text_fonts(text):
     b_low, b_up = "𝐚𝐛𝐜𝐝𝐞𝐟𝐠𝐡𝐢𝐣𝑘𝑙𝐦𝐧𝑜𝑝𝐪𝑟𝐬𝑡𝑢𝑣𝑤𝑥𝑦𝑧", "𝐀𝐁𝐂𝐃𝐄𝐅𝐆𝐇𝐈𝐉𝐊𝐋𝐌𝐍𝐎𝐏𝐐𝐑𝐒𝐓𝐔𝐕𝐖𝐗𝐘𝐙"
     s_low, s_up = "𝗮𝗯𝗰𝗱𝚎𝗳𝗴𝙝𝗶𝗷𝗸𝗹𝗺𝚗𝗼𝗽𝗾𝗿𝘀𝘁𝘂𝘃𝘄𝘅𝘆𝘇", "𝗔𝗕𝗖𝗗𝗘𝗙𝗚𝗛𝗜𝗝𝗞𝗟𝗠𝗡𝗢𝗣𝤁𝗥𝗦𝗧𝗨𝗩𝗪𝗫𝗬𝗭"
     m_low, m_up = "𝚊𝚋𝚌𝚍𝚎𝚏𝚐𝚑𝚒𝚓𝚔𝚕𝚖𝚗𝚘𝚙𝚚𝚛𝚜𝚝𝚞𝚟𝚠𝚡𝚢𝚣", "𝙰𝙱𝙲𝙳𝙴𝙵𝙶𝙷𝙸𝙹𝙺𝙻𝙼𝙽𝙾𝙿𝚀𝚁𝚂𝚃𝚄𝚅𝚆𝚇𝚈𝚉"
-    bu_low, bu_up = "ⓐⓑⓒⓓⓔⓕⓖⓗⓘⓙⓚⓛⓜⓝⓞⓟⓠⓡⓢⓣⓤⓥⓦⓧⓨⓩ", "ⒶⒷⒸⒹⒺⒻⒼⒽⒾⒿⓀⓁⓂⓃ𝓞ⓅⓆⓇⓈⓉⓊⓋⓌⓍⓎⓏ"
+    bu_low, bu_up = "ⓐⓑⓒⓓⓔⓕⓖⓗⓘⓙⓚⓛⓜⓝⓞⓟⓠⓡⓢⓣⓤⓥⓦⓧⓨⓩ", "ⒶⒷⒸⒹⒺⒻⒼⒽⒾⒿⓀⓁⓂⓃ𝓞ⓅⓆⓇⓈⓉⓊⓋⓌⓍⓎ𝒁"
 
     tr_b = str.maketrans(l_org + u_org, b_low + b_up)
     tr_s = str.maketrans(l_org + u_org, s_low, s_up[:len(l_org)])
