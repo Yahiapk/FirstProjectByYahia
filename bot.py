@@ -115,10 +115,11 @@ def format_time_12h(time_str):
         return time_str
 
 # =============================================================================
-# دالة إرسال معلومات المستخدم فقط عند الدخول لأول مرة للبوت الثاني
+# دالة إرسال التنبيه للبوت الثاني مع طباعة سبب الخطأ في حال حدوثه
 # =============================================================================
 async def send_new_user_alert(user):
     if not ALERT_BOT_TOKEN or not ADMIN_ID:
+        print("Alert Error: ALERT_BOT_TOKEN or ADMIN_ID is missing!")
         return
     
     user_id = user.id
@@ -141,9 +142,11 @@ async def send_new_user_alert(user):
         "parse_mode": "Markdown"
     }
     try:
-        requests.post(url, json=payload, timeout=5)
+        response = requests.post(url, json=payload, timeout=5)
+        if response.status_code != 200:
+            print(f"Failed to send alert via second bot: {response.text}")
     except Exception as e:
-        print(f"Alert error: {e}")
+        print(f"Alert connection error: {e}")
 
 # =============================================================================
 # أدوات صيد اليوزرات الحقيقية
@@ -429,7 +432,7 @@ def decorate_text_fonts(text):
     script_map = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
                                "𝒶𝒷𝒸𝒹ℯ𝒻ℊ𝒽𝒾𝒿𝓀𝓁𝓂𝓃ℴ𝓅𝓆𝓇𝓈𝓉𝓊𝓋𝓌𝓍𝓎𝓏𝒜ℬ𝒞𝒟ℰℱ𝒢ℋℐ𝒥𝒦𝒧𝒨𝒩𝒪𝒫𝒬𝒭𝒮𝒯𝒰𝒱𝒲𝒳𝒴𝒵")
     mono_map = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
-                             "𝚊𝚋𝚌𝚍𝚎𝚏𝚐𝚑𝚒𝚓𝚔𝚕𝚖𝚗𝚘𝚙𝚚𝚛𝚜𝚝𝚞𝚟𝚠🇽𝚢𝚣𝙰𝙱𝙲𝙳𝙴𝙵𝙶𝙷𝙸𝙹𝙺𝙻𝙼𝙽𝙾𝙿𝚀𝚁𝚂𝚃𝚄𝚅𝚆𝚇𝚈𝙉𝟶𝟷𝟸𝟹𝟺𝟻𝟼𝟽𝟾𝟿")
+                             "𝚊𝚋𝚌𝚍𝚎𝚏𝚐𝚑𝚒𝚓𝚔𝚕𝚖𝚗𝚘𝚙𝚚𝚛𝚜𝚝𝚞𝚟𝚠🇽𝚢𝚣𝙰𝙱𝙲𝙳𝙴𝙵𝙶𝙷𝙸𝙹𝙺𝙻𝙼𝙽𝙾𝙿𝚀𝚁𝚂𝚃𝚄𝚅𝚆𝚇𝚈𝚉𝟶𝟷𝟸𝟹𝟺𝟻𝟼𝟽𝟾𝟿")
     bubble_map = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
                                "ⓐⓑⓒⓓⓔⓕⓖⓗⓘⓙⓚⓛⓜⓝⓞⓟⓠⓡⓢⓣⓤⓥⓦⓧⓨⓩⒶⒷⒸⒹⒺⒻⒼⒽⒾⒿⓀⓁⓂⓃⓄⓅⓆⓇⓈⓉⓊⓋⓌⓍⓎⓏ⓪①②③④⑤⑥⑦⑧⑨")
 
@@ -456,7 +459,7 @@ def decorate_text_fonts(text):
     return output
 
 # =============================================================================
-# أوامر الإدارة (حظر، رفع حظر، وعرض نشاط المستخدمين بـ /view)
+# أوامر الإدارة
 # =============================================================================
 async def ban_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
