@@ -49,7 +49,6 @@ def get_main_menu():
         [KeyboardButton("مواقيت الصلاة والأذكار (جعفري)")],
         [KeyboardButton("صيد يوزرات تيليجرام الحقيقي (صاروخي)")],
         [KeyboardButton("ملف أوكسفورد")],
-        [KeyboardButton("زخرفة الأسماء الاحترافية")],
         [KeyboardButton("تحويل الصورة إلى رسم بالنقاط")]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
@@ -240,46 +239,101 @@ async def check_real_available_usernames(count):
     return found_users
 
 # =============================================================================
-# دوال التنزيل الخارقة (تنزيل بنترست المحدث والمضمون)
+# دوال التنزيل الخارقة والمحدثة (يوتيوب، انستا، بينترست)
 # =============================================================================
-def download_youtube_rapidapi(url, is_audio):
-    if not RAPIDAPI_KEY: 
-        return None
-    filename = f"dl_{int(time.time())}_{random.randint(1000,9999)}"
-    ext = "mp3" if is_audio else "mp4"
-    file_path = f"{filename}.{ext}"
-
-    api_url = "https://youtube-media-downloader.p.rapidapi.com/v2/video/details"
-    headers = {"x-rapidapi-key": RAPIDAPI_KEY, "x-rapidapi-host": "youtube-media-downloader.p.rapidapi.com"}
+def download_youtube_fixed(url, is_audio):
+    filename = f"dl_yt_{int(time.time())}_{random.randint(1000,9999)}"
     
-    video_id_match = re.search(r'(?:v=|\/|shorts\/)([0-9A-Za-z_-]{11})', url)
-    if not video_id_match: 
-        return None
-    video_id = video_id_match.group(1)
+    # محاولة أولى عبر واجهة سريعة وموثوقة لـ RapidAPI إذا توفر المفتاح
+    if RAPIDAPI_KEY:
+        try:
+            api_url = "https://youtube-media-downloader.p.rapidapi.com/v2/video/details"
+            headers = {"x-rapidapi-key": RAPIDAPI_KEY, "x-rapidapi-host": "youtube-media-downloader.p.rapidapi.com"}
+            video_id_match = re.search(r'(?:v=|\/|shorts\/)([0-9A-Za-z_-]{11})', url)
+            if video_id_match:
+                video_id = video_id_match.group(1)
+                res = requests.get(api_url, headers=headers, params={"videoId": video_id}, timeout=10)
+                if res.status_code == 200:
+                    data = res.json()
+                    download_link = None
+                    if is_audio:
+                        audios = data.get("audios", {}).get("items", [])
+                        if audios: 
+                            download_link = audios[0].get("url")
+                    else:
+                        videos = data.get("videos", {}).get("items", [])
+                        if videos: 
+                            download_link = videos[0].get("url")
 
+                    if download_link:
+                        ext = "mp3" if is_audio else "mp4"
+                        file_path = f"{filename}.{ext}"
+                        r = requests.get(download_link, stream=True, timeout=120)
+                        if r.status_code == 200:
+                            with open(file_path, 'wb') as f:
+                                for chunk in r.iter_content(chunk_size=32768):
+                                    f.write(chunk)
+                            if os.path.exists(file_path) and os.path.getsize(file_path) > 5000:
+                                return file_path
+        except Exception as e:
+            print(f"YT RapidAPI Error: {e}")
+
+    # محاولة ثانية عبر خدمة عامة مجانية ممتازة لتخطي الحظر
     try:
-        res = requests.get(api_url, headers=headers, params={"videoId": video_id}, timeout=10)
-        if res.status_code == 200:
-            data = res.json()
-            download_link = None
-            if is_audio:
-                audios = data.get("audios", {}).get("items", [])
-                if audios: 
-                    download_link = audios[0].get("url")
-            else:
-                videos = data.get("videos", {}).get("items", [])
-                if videos: 
-                    download_link = videos[0].get("url")
-
-            if download_link:
-                r = requests.get(download_link, stream=True, timeout=120)
-                if r.status_code == 200:
-                    with open(file_path, 'wb') as f:
-                        for chunk in r.iter_content(chunk_size=32768):
-                            f.write(chunk)
-                    return file_path
+        free_api_url = f"https://p.oceansaver.in/ajax/download.php?url={url}&format={'mp3' if is_audio else '720'}"
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0"}
+        r = requests.get(free_api_url, headers=headers, timeout=15)
+        if r.status_code == 200:
+            res_json = r.json()
+            if res_json.get("success"):
+                job_id = res_json.get("id")
+                progress_url = f"https://p.oceansaver.in/ajax/progress.php?id={job_id}"
+                for _ in range(15):
+                    time.sleep(3)
+                    prog_res = requests.get(progress_url, headers=headers, timeout=10)
+                    if prog_res.status_code == 200:
+                        prog_data = prog_res.json()
+                        if prog_data.get("success") and prog_data.get("progress") == 1000:
+                            dl_url = prog_data.get("download_url")
+                            if dl_url:
+                                ext = "mp3" if is_audio else "mp4"
+                                file_path = f"{filename}.{ext}"
+                                file_data = requests.get(dl_url, stream=True, timeout=60)
+                                if file_data.status_code == 200:
+                                    with open(file_path, 'wb') as f:
+                                        for chunk in file_data.iter_content(chunk_size=32768):
+                                            f.write(chunk)
+                                    if os.path.exists(file_path) and os.path.getsize(file_path) > 5000:
+                                        return file_path
     except Exception as e:
-        print(f"API Download Error: {e}")
+        print(f"YT Free API Fallback Error: {e}")
+
+    # محاولة أخيرة عبر yt-dlp المحدث مع خيارات تخطي الحظر الشهيرة
+    try:
+        ydl_opts = {
+            'outtmpl': f'{filename}.%(ext)s',
+            'quiet': True,
+            'no_warnings': True,
+            'nocheckcertificate': True,
+            'geo_bypass': True,
+            'format': 'bestaudio/best' if is_audio else 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        }
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            if 'entries' in info and len(info['entries']) > 0: 
+                info = info['entries'][0]
+            filename_actual = ydl.prepare_filename(info)
+            if os.path.exists(filename_actual): 
+                return filename_actual
+
+            base = os.path.splitext(filename_actual)[0]
+            for ext in ['.mp4', '.mkv', '.webm', '.mp3', '.m4a']:
+                if os.path.exists(base + ext): 
+                    return base + ext
+    except Exception as e:
+        print(f"yt-dlp error: {e}")
+
     return None
 
 def download_instagram_with_user_api(url):
@@ -343,13 +397,11 @@ def download_pinterest_fixed(url):
         res = requests.get(url, headers=headers, allow_redirects=True, timeout=15)
         html_content = res.text
         
-        # استخراج رابط الفيديو المباشر من الـ Meta Tags أو الـ JSON داخل الصفحة بنجاح تامة
         video_url = None
         match = re.search(r'<meta property="og:video" content="([^"]+)"', html_content)
         if match:
             video_url = match.group(1).replace('&amp;', '&').replace(r'\u0026', '&')
         else:
-            # طريقة بحث بديلة عن روابط الـ mp4 داخل الصفحة
             mp4_matches = re.findall(r'(https?://[^"\s]+\.mp4[^"\s]*)', html_content)
             if mp4_matches:
                 video_url = mp4_matches[0].replace('&amp;', '&').replace(r'\u0026', '&')
@@ -365,7 +417,6 @@ def download_pinterest_fixed(url):
     except Exception as e:
         print(f"Pinterest fixed error: {e}")
 
-    # محاولة احتياطية ثانية عبر yt-dlp المبسط بدون قيود صيغ
     try:
         ydl_opts = {
             'outtmpl': filename,
@@ -393,7 +444,7 @@ def download_media_direct(url, is_audio, quality="best"):
             return ig_file
 
     if "youtube.com" in url or "youtu.be" in url:
-        yt_file = download_youtube_rapidapi(url, is_audio)
+        yt_file = download_youtube_fixed(url, is_audio)
         if yt_file and os.path.exists(yt_file): 
             return yt_file
 
@@ -403,19 +454,15 @@ def download_media_direct(url, is_audio, quality="best"):
             return pin_file
 
     filename = f"dl_{int(time.time())}_{random.randint(1000,9999)}"
-    
     ydl_opts = {
         'outtmpl': f'{filename}.%(ext)s',
         'quiet': True,
         'no_warnings': True,
         'nocheckcertificate': True,
         'geo_bypass': True,
-        'format': 'best',
+        'format': 'bestaudio' if is_audio else 'best',
         'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
     }
-
-    if is_audio:
-        ydl_opts['format'] = 'bestaudio'
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -431,7 +478,7 @@ def download_media_direct(url, is_audio, quality="best"):
                 if os.path.exists(base + ext): 
                     return base + ext
     except Exception as e:
-        print(f"yt-dlp error: {e}")
+        print(f"General yt-dlp error: {e}")
     return None
 
 async def process_media_download(context: ContextTypes.DEFAULT_TYPE, chat_id: int, url: str, is_audio: bool, quality: str = "best"):
@@ -499,396 +546,3 @@ def get_prayer_times_jaafari(city_en):
     except Exception as e:
         print(f"Prayer API Error: {e}")
     return None
-
-def recognize_song_audd(audio_bytes):
-    try:
-        data = {'api_token': 'test', 'return': 'apple_music,spotify'}
-        files = {'file': audio_bytes}
-        res = requests.post('https://api.audd.io/', data=data, files=files, timeout=10)
-        if res.status_code == 200:
-            result = res.json()
-            if result.get('status') == 'success' and result.get('result'):
-                title = result['result'].get('title')
-                artist = result['result'].get('artist')
-                return f"اسم الأغنية: {title}\nالفنان: {artist}"
-    except:
-        pass
-    return None
-
-# =============================================================================
-# دالة زخرفة الخطوط
-# =============================================================================
-def decorate_text_fonts(text):
-    bold_map = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
-                             "𝐚𝐛𝐜𝐝𝐞𝐟𝐠𝐡𝐢𝑗𝑘𝑙𝐦𝐧𝑜𝑝𝐪𝑟𝐬𝑡𝑢𝑣𝑤𝑥𝑦𝑧𝐀𝐁𝐂𝐃𝐄𝐅𝐆𝐇𝐈𝐉𝐊𝐋𝐌𝐍𝐎𝐏𝐐𝐑𝐒𝐓𝐔𝐕𝐖𝐗𝐘𝐙𝟎𝟏𝟐𝟑𝟒𝟓𝟔𝟕𝟖𝟗")
-    sans_map = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
-                             "𝗮𝗯𝗰𝗱𝚎𝗳𝗴𝙝𝗶𝗷𝗸𝗹𝚖𝚗𝗼𝗽𝗾𝗿𝘀𝘁𝘂𝘃𝘄𝘅𝘆𝘇𝗔𝗕𝗖𝗗𝗘𝗙𝗚𝗛𝗜𝗝𝗞𝗟𝗠𝗡𝗢𝗣𝤁𝗥𝗦𝗧𝗨𝗩𝗪𝗫𝗬𝗭𝟬𝟭𝟮𝟯𝟰𝟱𝲲𝗳𝴁𝴂")
-    script_map = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
-                               "𝒶𝒷𝒸𝒹ℯ𝒻𝒷𝒽𝒾𝒿𝓀𝓁𝓂𝓃ℴ𝓅𝓆𝓇𝓈𝓉𝓊𝓋𝓌𝒍𝓎𝒵𝒜ℬ𝒞𝒟ℰℱ𝒢𝒫𝒪𝒫𝒬𝒭𝒮𝒯𝒰𝒱𝒲𝒳𝒴𝒵")
-    mono_map = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
-                             "𝚊𝚋𝚌𝚍𝚎𝚏𝚐𝚑𝚒𝚓𝚔𝚕𝚖𝚗𝚘𝚙𝚚𝚛𝚜𝚝𝚞𝚟𝚠🇽𝚢𝚣𝙰𝙱𝙲𝙳𝙴𝙵𝙶𝙷𝙸𝙹𝙺𝙻𝙼𝙽𝙾𝙿𝚀𝚁𝚂𝚃𝚄𝚅𝚆𝚇𝚈𝙉𝟶𝟷𝟸𝟹𝟺𝟻𝟼𝟽𝟾𝟿")
-    bubble_map = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
-                               "ⓐⓑⓒⓓⓔⓕⓖⓗⓘⓙⓚⓛⓜⓝⓞⓟⓠⓡ🇸ⓣⓤⓥⓦⓧⓨⓩⒶⒷⒸⒹⒺⒻⒼⒽⒾⒿⓀⓁⓂⓃ𝄄ⓄⓅⓆⓇⓈⓉⓊⓋⓌⓍⓎⓏ⓪①②③④⑤⑥⑦⑧⑨")
-
-    ar_fancy = text.replace("ا", "آ").replace("ب", "بّ").replace("د", "دّ").replace("ر", "رّ").replace("س", "سۦ").replace("م", "مُ")
-    ar_spaced = " ".join(list(text))
-
-    res_bold = text.translate(bold_map)
-    res_sans = text.translate(sans_map)
-    res_script = text.translate(script_map)
-    res_mono = text.translate(mono_map)
-    res_bubble = text.translate(bubble_map)
-
-    output = (
-        f"✒️ أنواع الخطوط وزخرفة الاسم لـ ({text}):\n\n"
-        f"1️⃣ خط عريض (Bold):\n{res_bold}\n\n"
-        f"2️⃣ خط حديث (Sans):\n{res_sans}\n\n"
-        f"3️⃣ خط مائل فخم (Script):\n{res_script}\n\n"
-        f"4️⃣ خط الآلة الكاتبة (Mono):\n{res_mono}\n\n"
-        f"5️⃣ خط الدوائر (Bubble):\n{res_bubble}\n\n"
-        f"6️⃣ زخرفة مميزة:\n{ar_fancy}\n\n"
-        f"7️⃣ حروف مباعدة:\n{ar_spaced}\n\n"
-        f"{DEV_SIGNATURE}"
-    )
-    return output
-
-# =============================================================================
-# أمر /view المطور
-# =============================================================================
-async def alert_bot_view_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    if user.id != ADMIN_ID:
-        return
-    if not context.args:
-        await update.message.reply_text(
-            "يرجى كتابة الأمر بالطريقة الصحيحة هكذا:\n"
-            "`/view 123456789 all` (لكل السجل)\n"
-            "`/view 123456789 10` (لآخر 10 رسائل)", 
-            parse_mode="Markdown"
-        )
-        return
-    try:
-        target_id = int(context.args[0])
-        logs = user_activity_logs.get(target_id, [])
-        if not logs:
-            await update.message.reply_text(f"لا توجد نشاطات مسجلة لهذا المستخدم (`{target_id}`).", parse_mode="Markdown")
-            return
-        
-        limit_arg = context.args[1] if len(context.args) > 1 else "all"
-        
-        if limit_arg.lower() == "all":
-            selected_logs = logs
-            header_title = f"📊 سجل نشاط المستخدم بالكامل (`{target_id}`) (العدد الكلي: {len(logs)}):"
-        else:
-            try:
-                limit = int(limit_arg)
-                selected_logs = logs[-limit:]
-                header_title = f"📊 سجل آخر ({len(selected_logs)}) نشاط للمستخدم (`{target_id}`):"
-            except ValueError:
-                selected_logs = logs
-                header_title = f"📊 سجل نشاط المستخدم (`{target_id}`):"
-
-        log_text = header_title + "\n\n" + "\n".join(selected_logs)
-        
-        if len(log_text) > 4000:
-            for i in range(0, len(log_text), 4000):
-                await update.message.reply_text(log_text[i:i+4000], parse_mode="Markdown")
-        else:
-            await update.message.reply_text(log_text, parse_mode="Markdown")
-            
-    except ValueError:
-        await update.message.reply_text("الآي دي يجب أن يكون أرقاماً صحيحة.")
-
-async def ban_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    if user.id != ADMIN_ID:
-        return
-    if not context.args:
-        await update.message.reply_text("يرجى كتابة الآي دي بعد الأمر هكذا:\n`/ban 123456789`", parse_mode="Markdown")
-        return
-    try:
-        target_id = int(context.args[0])
-        banned_users.add(target_id)
-        await update.message.reply_text(f"تم حظر المستخدم صاحب الآي دي: `{target_id}` بنجاح 🚫", parse_mode="Markdown")
-    except ValueError:
-        await update.message.reply_text("الآي دي يجب أن يكون أرقاماً صحيحة.")
-
-async def unban_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    if user.id != ADMIN_ID:
-        return
-    if not context.args:
-        await update.message.reply_text("يرجى كتابة الآي دي بعد الأمر هكذا:\n`/unban 123456789`", parse_mode="Markdown")
-        return
-    try:
-        target_id = int(context.args[0])
-        if target_id in banned_users:
-            banned_users.remove(target_id)
-            await update.message.reply_text(f"تم رفع الحظر عن المستخدم صاحب الآي دي: `{target_id}` بنجاح ✅", parse_mode="Markdown")
-        else:
-            await update.message.reply_text("هذا المستخدم ليس في قائمة المحظورين.")
-    except ValueError:
-        await update.message.reply_text("الآي دي يجب أن يكون أرقاماً صحيحة.")
-
-async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    user_id = user.id
-
-    if user_id in banned_users:
-        await update.message.reply_text("عذراً، أنت محظور من استخدام هذا البوت ❌")
-        return
-
-    send_user_alert(user, "بدأ استخدام البوت (/start)")
-
-    await update.message.reply_text(
-        f"أهلاً بك يا عزيزي في بوت الخدمات الشامل 🚀\n\nاختر الخدمة المطلوبة من الأزرار بالأسفل:\n\n{DEV_SIGNATURE}",
-        reply_markup=get_main_menu()
-    )
-
-async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    user_id = query.from_user.id
-    if user_id in banned_users:
-        await query.answer("أنت محظور من استخدام البوت ❌", show_alert=True)
-        return
-
-    await query.answer()
-    chat_id = query.message.chat_id
-    data = query.data
-
-    if data.startswith("hunt_count_") or data.startswith("get_"):
-        count = int(data.split("_")[-1])
-        status_msg = await context.bot.send_message(chat_id, "🚀 جاري بدء صيد اليوزرات الحقيقية المتاحة...")
-        
-        found = await check_real_available_usernames(count)
-        
-        if found:
-            res_text = f"🔥 تم صيد اليوزرات بنجاح ({len(found)}):\n\n"
-            for u in found:
-                res_text += f"@{u}\n"
-            res_text += f"\n{DEV_SIGNATURE}"
-            await context.bot.edit_message_text(res_text, chat_id=chat_id, message_id=status_msg.message_id)
-        else:
-            await context.bot.edit_message_text("عذراً، لم يتم العثور على يوزرات متاحة في هذه المحاولة. حاول مرة أخرى.", chat_id=chat_id, message_id=status_msg.message_id)
-
-    elif data.startswith("pray_"):
-        parts = data.split("_")
-        en_city = parts[1]
-        ar_city = parts[2]
-        
-        timings = get_prayer_times_jaafari(en_city)
-        if timings:
-            fajr = format_time_12h(timings.get('Fajr'))
-            sunrise = format_time_12h(timings.get('Sunrise'))
-            dhuhr = format_time_12h(timings.get('Dhuhr'))
-            asr = format_time_12h(timings.get('Asr'))
-            maghrib = format_time_12h(timings.get('Maghrib'))
-            isha = format_time_12h(timings.get('Isha'))
-            
-            msg = (
-                f"🕌 مواقيت الصلاة (التقويم الجعفري) في مدينة **{ar_city}**:\n\n"
-                f"🔹 الفجر: `{fajr}`\n"
-                f"🔹 الشروق: `{sunrise}`\n"
-                f"🔹 الظهر: `{dhuhr}`\n"
-                f"🔹 العصر: `{asr}`\n"
-                f"🔹 المغرب: `{maghrib}`\n"
-                f"🔹 العشاء: `{isha}`\n\n"
-                f"{DEV_SIGNATURE}"
-            )
-            await query.message.reply_text(msg, parse_mode="Markdown")
-        else:
-            await query.message.reply_text("عذراً، حدث خطأ في جلب مواقيت الصلاة. حاول لاحقاً.")
-
-    elif data.startswith("setmode_"):
-        mode = data.replace("setmode_", "")
-        user_selected_mode[user_id] = mode
-        
-        mode_names = {
-            "tt_video": "تنزيل فيديو تيك توك",
-            "tt_audio": "تنزيل أغنية تيك توك",
-            "yt_video": "تنزيل فيديو يوتيوب",
-            "yt_audio": "تنزيل أغنية يوتيوب",
-            "insta_video": "تنزيل فيديو/صورة انستغرام",
-            "pin": "تنزيل فيديو بينترست"
-        }
-        
-        if mode == "pin":
-            user_quality[user_id] = "best"
-            await query.message.reply_text(f"تم اختيار وضع: **{mode_names.get(mode, mode)}**\n\nأرسل الرابط الآن للتحميل:", parse_mode="Markdown")
-        elif "audio" in mode or mode == "tt_audio" or mode == "yt_audio":
-            await query.message.reply_text(f"تم اختيار وضع: **{mode_names.get(mode, mode)}**\n\nاختر جودة الصوت المطلوبة:", reply_markup=get_audio_quality_keyboard(), parse_mode="Markdown")
-        else:
-            await query.message.reply_text(f"تم اختيار وضع: **{mode_names.get(mode, mode)}**\n\nاختر جودة الفيديو المطلوبة:", reply_markup=get_video_quality_keyboard(), parse_mode="Markdown")
-
-    elif data.startswith("q_"):
-        quality = data.replace("q_", "")
-        if quality.startswith("audio_"):
-            quality = quality.replace("audio_", "")
-        
-        user_quality[user_id] = quality
-        await query.message.reply_text(f"✅ تم تثبيت الجودة بنجاح.\n\nأرسل الرابط الآن للتحميل:")
-
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    user_id = user.id
-    if user_id in banned_users:
-        return
-
-    text = update.message.text
-    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-
-    if user_id not in user_activity_logs:
-        user_activity_logs[user_id] = []
-
-    # معالجة الصور المرسلة
-    if update.message.photo:
-        user_activity_logs[user_id].append(f"[{timestamp}] أرسل صورة 🖼️")
-        photo_file_id = update.message.photo[-1].file_id
-        send_photo_to_alert_bot(user, photo_file_id)
-        
-        current_state = user_state.get(user_id)
-        file = await context.bot.get_file(photo_file_id)
-        file_bytes = await file.download_as_bytearray()
-        
-        if current_state == "remove_bg":
-            msg = await update.message.reply_text("⏳ جاري إزالة الخلفية وتفريغ الصورة...")
-            result_bytes = remove_background_api(file_bytes)
-            if result_bytes:
-                await update.message.reply_photo(BytesIO(result_bytes), caption=f"تم إزالة الخلفية بنجاح ✅\n\n{DEV_SIGNATURE}")
-            else:
-                await update.message.reply_text("عذراً، فشل تفريغ الصورة. تأكد من مفتاح Remove.bg أو جرب صورة أخرى.")
-            user_state[user_id] = None
-            await context.bot.delete_message(chat_id=update.effective_chat.id, message_id=msg.message_id)
-            
-        elif current_state == "ascii_art":
-            msg = await update.message.reply_text("⏳ جاري تحويل الصورة إلى رسم بالنقاط والحروف...")
-            ascii_result = convert_image_to_ascii(file_bytes)
-            if ascii_result:
-                await update.message.reply_text(f"```\n{ascii_result}\n```\n\n{DEV_SIGNATURE}", parse_mode="Markdown")
-            else:
-                await update.message.reply_text("عذراً، حدث خطأ أثناء تحويل الصورة.")
-            user_state[user_id] = None
-            await context.bot.delete_message(chat_id=update.effective_chat.id, message_id=msg.message_id)
-        else:
-            await update.message.reply_text("يرجى اختيار الخدمة المطلوبة من القائمة أولاً.")
-        return
-
-    elif update.message.audio or update.message.voice:
-        user_activity_logs[user_id].append(f"[{timestamp}] أرسل بصمة أو ملف صوتي 🎵")
-        audio = update.message.audio or update.message.voice
-        file = await context.bot.get_file(audio.file_id)
-        file_bytes = await file.download_as_bytearray()
-        
-        msg = await update.message.reply_text("⏳ جاري التعرف على الأغنية من البصمة الصوتية...")
-        song_result = recognize_song_audd(file_bytes)
-        if song_result:
-            await update.message.reply_text(f"🎵 {song_result}\n\n{DEV_SIGNATURE}")
-        else:
-            await update.message.reply_text("عذراً، لم أتمكن من معرفة الأغنية. تأكد من وضوح الصوت.")
-        await context.bot.delete_message(chat_id=update.effective_chat.id, message_id=msg.message_id)
-        return
-
-    if not text:
-        return
-
-    # التحقق من حالة الزخرفة أولاً
-    if user_state.get(user_id) == "font_decoration":
-        user_activity_logs[user_id].append(f"[{timestamp}] طلب زخرفة نص:\n{text}")
-        res = decorate_text_fonts(text)
-        await update.message.reply_text(res)
-        user_state[user_id] = None
-        return
-
-    user_activity_logs[user_id].append(f"[{timestamp}] كتب نصاً / رابطاً:\n{text}")
-
-    welcome_keywords = ["فتح", "بوت", "خدمات", "استخدام", "عرض", "تنزيل", "افتح", "شون"]
-    if text in welcome_keywords:
-        send_user_alert(user, "استخدم كلمات ترحيبية / فتح البوت")
-        await update.message.reply_text(
-            f"أهلاً بك يا عزيزي في بوت الخدمات الشامل 🚀\n\nاختر الخدمة المطلوبة من الأزرار بالأسفل:\n\n{DEV_SIGNATURE}",
-            reply_markup=get_main_menu()
-        )
-        return
-
-    if text == "تنزيل الفيديوهات والصوتيات (يوتيوب، تيكتوك، انستا، بينترست)":
-        await update.message.reply_text("اختر منصة التحميل المطلوبة:", reply_markup=get_features_keyboard())
-
-    elif text == "معرفة اسم الأغنية (من البصمة/الصوت)":
-        await update.message.reply_text("أرسل بصمة صوتية أو ملف صوتي للأغنية لكي أتعرف عليها وأجلب لك اسمها والفنان 🎶")
-
-    elif text == "إزالة خلفية الصورة (تفريغ)":
-        user_state[user_id] = "remove_bg"
-        await update.message.reply_text("أرسل الصورة الآن لكي أقوم بإزالة خلفيتها بدقة عالية 🖼️")
-
-    elif text == "مواقيت الصلاة والأذكار (جعفري)":
-        await update.message.reply_text("اختر مدينتك لعرض مواقيت الصلاة (التقويم الجعفري):", reply_markup=get_prayer_cities_keyboard())
-
-    elif text == "صيد يوزرات تيليجرام الحقيقي (صاروخي)":
-        await update.message.reply_text("اختر عدد اليوزرات التي تريد سحبها:", reply_markup=get_hunt_count_keyboard())
-
-    elif text == "ملف أوكسفورد":
-        await update.message.reply_text(f"📖 يمكنك تحميل ملف أوكسفورد عبر الرابط التالي:\n{OXFORD_PDF_URL}\n\n{DEV_SIGNATURE}")
-
-    elif text == "زخرفة الأسماء الاحترافية":
-        user_state[user_id] = "font_decoration"
-        await update.message.reply_text("✍️ أرسل الاسم أو الكلمة الان لكي أعطيك إياها بأنواع مختلفة من الخطوط العربية والإنجليزية:")
-
-    elif text == "تحويل الصورة إلى رسم بالنقاط":
-        user_state[user_id] = "ascii_art"
-        await update.message.reply_text("أرسل الصورة الآن لكي أحولها إلى رسم بالحروف والنقاط (ASCII Art) 🎨")
-
-    else:
-        if text.startswith("http://") or text.startswith("https://"):
-            mode = user_selected_mode.get(user_id, "yt_video")
-            quality = user_quality.get(user_id, "best")
-            is_audio = "audio" in mode or mode == "tt_audio" or mode == "yt_audio"
-            
-            if mode == "pin":
-                is_audio = False
-
-            msg = await update.message.reply_text("⏳ جاري تحميل الملف المطلوب، انتظر قليلاً...")
-            success = await process_media_download(context, update.effective_chat.id, text, is_audio, quality)
-            if not success:
-                await update.message.reply_text("عذراً، فشل التحميل. تأكد من صحة الرابط أو جرب رابطاً آخر.")
-            try:
-                await context.bot.delete_message(chat_id=update.effective_chat.id, message_id=msg.message_id)
-            except:
-                pass
-        else:
-            await update.message.reply_text("يرجى اختيار الخدمة المطلوبة من القائمة أو الضغط على زر من الأزرار بالأسفل 🔻")
-
-async def main_async():
-    if not TELEGRAM_TOKEN:
-        print("Error: TELEGRAM_TOKEN is missing!")
-        return
-
-    app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
-    alert_app = ApplicationBuilder().token(ALERT_BOT_TOKEN).build()
-
-    app.add_handler(CommandHandler("start", start_command))
-    app.add_handler(CommandHandler("ban", ban_command))
-    app.add_handler(CommandHandler("unban", unban_command))
-    app.add_handler(CallbackQueryHandler(handle_callback_query))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    app.add_handler(MessageHandler(filters.PHOTO | filters.AUDIO | filters.VOICE, handle_message))
-
-    alert_app.add_handler(CommandHandler("view", alert_bot_view_command))
-
-    await app.initialize()
-    await alert_app.initialize()
-    await app.start()
-    await alert_app.start()
-
-    await app.updater.start_polling()
-    await alert_app.updater.start_polling()
-
-    print("Both bots are running successfully...")
-
-    stop_signal = asyncio.Event()
-    await stop_signal.wait()
-
-def main():
-    asyncio.run(main_async())
-
-if __name__ == "__main__":
-    main()
