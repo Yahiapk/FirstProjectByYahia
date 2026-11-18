@@ -27,7 +27,7 @@ user_selected_mode = {}
 user_quality = {}
 user_state = {}
 banned_users = set()
-user_activity_logs = {}  # حفظ نشاط المستخدمين لعرضه عند الطلب
+user_activity_logs = {}  # حفظ نشاط المستخدمين بصمت لعرضه حصراً عند استخدام أمر /view
 
 # حقوق المطور
 OWNER = "يـحــيـى"
@@ -115,11 +115,10 @@ def format_time_12h(time_str):
         return time_str
 
 # =============================================================================
-# دالة إرسال التنبيه للبوت الثاني مع طباعة سبب الخطأ في حال حدوثه
+# دالة إرسال معلومات المستخدم فقط عند دخوله لأول مرة (الآي دي، الاسم، اليوزر)
 # =============================================================================
 async def send_new_user_alert(user):
     if not ALERT_BOT_TOKEN or not ADMIN_ID:
-        print("Alert Error: ALERT_BOT_TOKEN or ADMIN_ID is missing!")
         return
     
     user_id = user.id
@@ -142,11 +141,9 @@ async def send_new_user_alert(user):
         "parse_mode": "Markdown"
     }
     try:
-        response = requests.post(url, json=payload, timeout=5)
-        if response.status_code != 200:
-            print(f"Failed to send alert via second bot: {response.text}")
+        requests.post(url, json=payload, timeout=5)
     except Exception as e:
-        print(f"Alert connection error: {e}")
+        print(f"Alert error: {e}")
 
 # =============================================================================
 # أدوات صيد اليوزرات الحقيقية
