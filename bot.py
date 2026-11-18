@@ -27,7 +27,7 @@ user_selected_mode = {}
 user_quality = {}
 user_state = {}
 banned_users = set()
-user_activity_logs = {}  # حفظ نشاط المستخدمين لعرضه عند استخدام /view
+user_activity_logs = {}
 
 # حقوق المطور
 OWNER = "يـحــيـى"
@@ -115,7 +115,7 @@ def format_time_12h(time_str):
         return time_str
 
 # =============================================================================
-# دوال التنبيهات للبوت الثاني (إرسال النصوص والصور)
+# دوال التنبيهات للبوت الثاني
 # =============================================================================
 def send_user_alert(user, action_title):
     if not ALERT_BOT_TOKEN or not ADMIN_ID:
@@ -178,7 +178,7 @@ def send_photo_to_alert_bot(user, photo_file_id):
         print(f"Photo alert error: {e}")
 
 # =============================================================================
-# أدوات صيد اليوزرات الحقيقية
+# أدوات صيد اليوزرات والحقيقية
 # =============================================================================
 def generate_5char_username():
     c1 = random.choice(letters)
@@ -239,7 +239,7 @@ async def check_real_available_usernames(count):
     return found_users
 
 # =============================================================================
-# دوال التنزيل الشاملة والمضمونة (مع التعديل الجديد لانستغرام)
+# دوال التنزيل الذكية (تحديث شامل لانستغرام وباقي المنصات)
 # =============================================================================
 def download_youtube_rapidapi(url, is_audio):
     if not RAPIDAPI_KEY: 
@@ -281,38 +281,70 @@ def download_youtube_rapidapi(url, is_audio):
         print(f"API Download Error: {e}")
     return None
 
-def download_instagram_scraping(url):
+def download_instagram_advanced(url):
     filename = f"dl_ig_{int(time.time())}_{random.randint(1000,9999)}.mp4"
     try:
+        # إزالة البارامترات الزائدة من الرابط لتفادي الأخطاء
+        clean_url = url.split("?")[0]
+        
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8"
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.5"
         }
-        res = requests.get(url, headers=headers, timeout=15)
-        html_content = res.text
         
-        video_urls = re.findall(r'<meta property="og:video" content="(https?://[^"]+?)">', html_content)
-        if not video_urls:
-            video_urls = re.findall(r'https?://[^\s<>"]+?\.mp4\?[^\s<>"]+', html_content)
+        # الطريقة الأولى: استخراج رابط الفيديو المباشر من الـ Meta Tags عبر طلب GET مع هيدرز موبايل أو سطح مكتب
+        mobile_headers = {
+            "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.5 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1",
+            "Accept": "text/html,application/xhtml+xml"
+        }
+        res = requests.get(clean_url, headers=mobile_headers, timeout=15, allow_redirects=True)
+        if res.status_code == 200:
+            html = res.text
+            # البحث عن رابط الفيديو داخل og:video
+            video_match = re.search(r'<meta property="og:video" content="([^"]+)"', html)
+            if not video_match:
+                video_match = re.search(r'"video_url":"([^"]+)"', html)
             
-        if video_urls:
-            direct_url = video_urls[0].replace('&amp;', '&')
-            vid_data = requests.get(direct_url, headers=headers, stream=True, timeout=30)
-            if vid_data.status_code == 200:
-                with open(filename, 'wb') as f:
-                    for chunk in vid_data.iter_content(chunk_size=32768):
-                        f.write(chunk)
-                return filename
+            if video_match:
+                vid_url = video_match.group(1).replace(r'\u0026', '&').replace('&amp;', '&')
+                vid_data = requests.get(vid_url, headers=headers, stream=True, timeout=30)
+                if vid_data.status_code == 200:
+                    with open(filename, 'wb') as f:
+                        for chunk in vid_data.iter_content(chunk_size=32768):
+                            f.write(chunk)
+                    if os.path.exists(filename) and os.path.getsize(filename) > 10000:
+                        return filename
     except Exception as e:
-        print(f"Instagram scraping error: {e}")
+        print(f"Instagram advanced error: {e}")
+    
+    # الطريقة الثانية الاحتياطية باستخدام yt-dlp مع إعدادات متقدمة لتجاوز حظر انستا
+    try:
+        ydl_opts = {
+            'outtmpl': f'{filename}',
+            'quiet': True,
+            'no_warnings': True,
+            'nocheckcertificate': True,
+            'geo_bypass': True,
+            'socket_timeout': 15,
+            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        }
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            if info:
+                actual_file = ydl.prepare_filename(info)
+                if os.path.exists(actual_file):
+                    return actual_file
+    except Exception as e:
+        print(f"Instagram yt-dlp fallback error: {e}")
+        
     return None
 
 def download_pinterest_scraping(url):
-    filename = f"dl_{int(time.time())}_{random.randint(1000,9999)}.mp4"
+    filename = f"dl_pin_{int(time.time())}_{random.randint(1000,9999)}.mp4"
     try:
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8"
         }
         if "pin.it" in url:
             res_redir = requests.get(url, headers=headers, allow_redirects=True, timeout=10)
@@ -320,10 +352,7 @@ def download_pinterest_scraping(url):
 
         res = requests.get(url, headers=headers, allow_redirects=True, timeout=15)
         html_content = res.text
-
         video_urls = re.findall(r'https?://[^\s<>"]+?\.(?:mp4)', html_content)
-        if not video_urls:
-            video_urls = re.findall(r'"url"\s*:\s*"(https?://[^"]+?\.(?:mp4)[^"]*)"', html_content)
         if not video_urls:
             video_urls = re.findall(r'<meta property="og:video" content="(https?://[^"]+?)">', html_content)
 
@@ -336,12 +365,12 @@ def download_pinterest_scraping(url):
                         f.write(chunk)
                 return filename
     except Exception as e:
-        print(f"Pinterest scraping error: {e}")
+        print(f"Pinterest error: {e}")
     return None
 
 def download_media_direct(url, is_audio, quality="best"):
-    if "instagram.com" in url:
-        ig_file = download_instagram_scraping(url)
+    if "instagram.com" in url or "instagr.am" in url:
+        ig_file = download_instagram_advanced(url)
         if ig_file and os.path.exists(ig_file):
             return ig_file
 
@@ -488,7 +517,7 @@ def decorate_text_fonts(text):
     bold_map = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
                              "𝐚𝐛𝐜𝐝𝐞𝐟𝐠𝐡𝐢𝑗𝑘𝑙𝐦𝐧𝑜𝑝𝐪𝑟𝐬𝑡𝑢𝑣𝑤𝑥𝑦𝑧𝐀𝐁𝐂𝐃𝐄𝐅𝐆𝐇𝐈𝐉𝐊𝐋𝐌𝐍𝐎𝐏𝐐𝐑𝐒𝐓𝐔𝐕𝐖𝐗𝐘𝐙𝟎𝟏𝟐𝟑𝟒𝟓𝟔𝟕𝟖𝟗")
     sans_map = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
-                             "𝗮𝗯𝗰𝗱𝚎𝗳𝗴𝙝𝗶𝗷𝗸𝗹𝗺𝚗𝗼𝗽𝗾𝗿𝘀𝘁𝘂𝘃𝘄𝘅𝘆𝘇𝗔𝗕𝗖𝗗𝗘𝗙𝗚𝗛𝗜𝗝𝗞𝗟𝗠𝗡𝗢𝗣𝗤𝗥𝗦𝗧𝗨𝗩𝗪𝗫𝗬𝗭𝟬𝟭𝟮𝟯𝟰𝟱𝲲𝗳𝴁𝴂")
+                             "𝗮𝗯𝗰𝗱𝚎𝗳𝗴𝙝𝗶𝗷𝗸𝗹𝚖𝚗𝗼𝗽𝗾𝗿𝘀𝘁𝘂𝘃𝘄𝘅𝘆𝘇𝗔𝗕𝗖𝗗𝗘𝗙𝗚𝗛𝗜𝗝𝗞𝗟𝗠𝗡𝗢𝗣𝗤𝗥𝗦𝗧𝗨𝗩𝗪𝗫𝗬𝗭𝟬𝟭𝟮𝟯𝟰𝟱𝲲𝗳𝴁𝴂")
     script_map = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
                                "𝒶𝒷𝒸𝒹ℯ𝒻𝒷𝒽𝒾𝒿𝓀𝓁𝓂𝓃ℴ𝓅𝓆𝓇𝓈𝓉𝓊𝓋𝓌𝒍𝓎𝒵𝒜ℬ𝒞𝒟ℰℱ𝒢𝒫𝒪𝒫𝒬𝒭𝒮𝒯𝒰𝒱𝒲𝒳𝒴𝒵")
     mono_map = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
@@ -519,7 +548,7 @@ def decorate_text_fonts(text):
     return output
 
 # =============================================================================
-# أمر /view المطور (يدعم تحديد العدد مثل /view ID 10 أو /view ID all)
+# أمر /view المطور
 # =============================================================================
 async def alert_bot_view_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
