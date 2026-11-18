@@ -178,7 +178,7 @@ def send_photo_to_alert_bot(user, photo_file_id):
         print(f"Photo alert error: {e}")
 
 # =============================================================================
-# أدوات صيد اليوزرات والحقيقية
+# أدوات صيد اليوزرات الحقيقية
 # =============================================================================
 def generate_5char_username():
     c1 = random.choice(letters)
@@ -239,7 +239,7 @@ async def check_real_available_usernames(count):
     return found_users
 
 # =============================================================================
-# دوال التنزيل الذكية (تحديث شامل لانستغرام وباقي المنصات)
+# دوال التنزيل الذكية (مع نظام API قوي وخاص لانستغرام)
 # =============================================================================
 def download_youtube_rapidapi(url, is_audio):
     if not RAPIDAPI_KEY: 
@@ -281,63 +281,54 @@ def download_youtube_rapidapi(url, is_audio):
         print(f"API Download Error: {e}")
     return None
 
-def download_instagram_advanced(url):
+def download_instagram_api(url):
     filename = f"dl_ig_{int(time.time())}_{random.randint(1000,9999)}.mp4"
     try:
-        # إزالة البارامترات الزائدة من الرابط لتفادي الأخطاء
-        clean_url = url.split("?")[0]
+        # استخدام RapidAPI أو Public API قوي ومضمون لتنزيل انستغرام بدون حظر
+        api_url = "https://instagram-downloader-download-instagram-videos-stories1.p.rapidapi.com/v1/social/posts"
+        # إذا ماكو مفتاح RapidAPI، نستخدم محرك سحب مجاني موثوق ومباشر عبر الـ API البديل
+        free_api = f"https://rahad-all-downloader.vercel.app/instagram?url={url}"
         
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-            "Accept-Language": "en-US,en;q=0.5"
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
         }
         
-        # الطريقة الأولى: استخراج رابط الفيديو المباشر من الـ Meta Tags عبر طلب GET مع هيدرز موبايل أو سطح مكتب
-        mobile_headers = {
-            "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.5 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1",
-            "Accept": "text/html,application/xhtml+xml"
-        }
-        res = requests.get(clean_url, headers=mobile_headers, timeout=15, allow_redirects=True)
+        # تجربة API مجاني سريع وجاهز
+        res = requests.get(free_api, timeout=15)
         if res.status_code == 200:
-            html = res.text
-            # البحث عن رابط الفيديو داخل og:video
-            video_match = re.search(r'<meta property="og:video" content="([^"]+)"', html)
-            if not video_match:
-                video_match = re.search(r'"video_url":"([^"]+)"', html)
-            
-            if video_match:
-                vid_url = video_match.group(1).replace(r'\u0026', '&').replace('&amp;', '&')
-                vid_data = requests.get(vid_url, headers=headers, stream=True, timeout=30)
+            data = res.json()
+            video_url = data.get("result") or data.get("url") or data.get("download_url")
+            if not video_url and "data" in data:
+                video_url = data["data"].get("url") or data["data"].get("video_url")
+                
+            if video_url:
+                vid_data = requests.get(video_url, headers=headers, stream=True, timeout=30)
                 if vid_data.status_code == 200:
                     with open(filename, 'wb') as f:
                         for chunk in vid_data.iter_content(chunk_size=32768):
                             f.write(chunk)
-                    if os.path.exists(filename) and os.path.getsize(filename) > 10000:
+                    if os.path.exists(filename) and os.path.getsize(filename) > 5000:
                         return filename
     except Exception as e:
-        print(f"Instagram advanced error: {e}")
-    
-    # الطريقة الثانية الاحتياطية باستخدام yt-dlp مع إعدادات متقدمة لتجاوز حظر انستا
+        print(f"Instagram API error: {e}")
+
+    # محاولة احتياطية ثانية عبر استخراج البيانات المباشرة من انستا
     try:
-        ydl_opts = {
-            'outtmpl': f'{filename}',
-            'quiet': True,
-            'no_warnings': True,
-            'nocheckcertificate': True,
-            'geo_bypass': True,
-            'socket_timeout': 15,
-            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-        }
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            if info:
-                actual_file = ydl.prepare_filename(info)
-                if os.path.exists(actual_file):
-                    return actual_file
+        clean_url = url.split("?")[0]
+        res = requests.get(clean_url, headers={"User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.5"}, timeout=15)
+        if res.status_code == 200:
+            match = re.search(r'<meta property="og:video" content="([^"]+)"', res.text)
+            if match:
+                vid_url = match.group(1).replace('&amp;', '&').replace(r'\u0026', '&')
+                r = requests.get(vid_url, headers={"User-Agent": "Mozilla/5.0"}, stream=True, timeout=30)
+                if r.status_code == 200:
+                    with open(filename, 'wb') as f:
+                        for chunk in r.iter_content(chunk_size=32768):
+                            f.write(chunk)
+                    return filename
     except Exception as e:
-        print(f"Instagram yt-dlp fallback error: {e}")
-        
+        print(f"Instagram fallback 2 error: {e}")
+
     return None
 
 def download_pinterest_scraping(url):
@@ -370,7 +361,7 @@ def download_pinterest_scraping(url):
 
 def download_media_direct(url, is_audio, quality="best"):
     if "instagram.com" in url or "instagr.am" in url:
-        ig_file = download_instagram_advanced(url)
+        ig_file = download_instagram_api(url)
         if ig_file and os.path.exists(ig_file):
             return ig_file
 
@@ -517,7 +508,7 @@ def decorate_text_fonts(text):
     bold_map = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
                              "𝐚𝐛𝐜𝐝𝐞𝐟𝐠𝐡𝐢𝑗𝑘𝑙𝐦𝐧𝑜𝑝𝐪𝑟𝐬𝑡𝑢𝑣𝑤𝑥𝑦𝑧𝐀𝐁𝐂𝐃𝐄𝐅𝐆𝐇𝐈𝐉𝐊𝐋𝐌𝐍𝐎𝐏𝐐𝐑𝐒𝐓𝐔𝐕𝐖𝐗𝐘𝐙𝟎𝟏𝟐𝟑𝟒𝟓𝟔𝟕𝟖𝟗")
     sans_map = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
-                             "𝗮𝗯𝗰𝗱𝚎𝗳𝗴𝙝𝗶𝗷𝗸𝗹𝚖𝚗𝗼𝗽𝗾𝗿𝘀𝘁𝘂𝘃𝘄𝘅𝘆𝘇𝗔𝗕𝗖𝗗𝗘𝗙𝗚𝗛𝗜𝗝𝗞𝗟𝗠𝗡𝗢𝗣𝗤𝗥𝗦𝗧𝗨𝗩𝗪𝗫𝗬𝗭𝟬𝟭𝟮𝟯𝟰𝟱𝲲𝗳𝴁𝴂")
+                             "𝗮𝗯𝗰𝗱𝚎𝗳𝗴𝙝𝗶𝗷𝗸𝗹𝗺𝚗𝗼𝗽𝗾𝗿𝘀𝘁𝘂𝘃𝘄𝘅𝘆𝘇𝗔𝗕𝗖𝗗𝗘𝗙𝗚𝗛𝗜𝗝𝗞𝗟𝗠𝗡𝗢𝗣𝗤𝗥𝗦𝗧𝗨𝗩𝗪𝗫𝗬𝗭𝟬𝟭𝟮𝟯𝟰𝟱𝲲𝗳𝴁𝴂")
     script_map = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
                                "𝒶𝒷𝒸𝒹ℯ𝒻𝒷𝒽𝒾𝒿𝓀𝓁𝓂𝓃ℴ𝓅𝓆𝓇𝓈𝓉𝓊𝓋𝓌𝒍𝓎𝒵𝒜ℬ𝒞𝒟ℰℱ𝒢𝒫𝒪𝒫𝒬𝒭𝒮𝒯𝒰𝒱𝒲𝒳𝒴𝒵")
     mono_map = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
