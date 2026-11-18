@@ -209,14 +209,13 @@ async def check_real_available_usernames(count):
         await asyncio.gather(*workers)
     return found_users
 
-# ==================== دوال التحميل الذكية لكل المنصات (يوتيوب + yt-dlp لباقي المواقع) ====================
-def download_youtube_api(url, is_audio):
+# ==================== دوال التحميل المستقلة والمضبوطة تماماً ====================
+def download_youtube_direct(url, is_audio):
     filename = f"dl_yt_{int(time.time())}_{random.randint(1000,9999)}"
     ext = "mp3" if is_audio else "mp4"
     file_path = f"{filename}.{ext}"
     video_id_match = re.search(r'(?:v=|\/|shorts\/)([0-9A-Za-z_-]{11})', url)
-    if not video_id_match: 
-        return None
+    if not video_id_match: return None
     video_id = video_id_match.group(1)
 
     try:
@@ -244,50 +243,102 @@ def download_youtube_api(url, is_audio):
                                     return file_path
                             break
     except Exception as e:
-        print(f"YouTube API Error: {e}")
+        print(f"YouTube Error: {e}")
     return None
 
-def download_ytdlp_universal(url, is_audio):
-    filename = f"dl_uni_{int(time.time())}_{random.randint(1000,9999)}"
-    ydl_opts = {
-        'outtmpl': f'{filename}.%(ext)s',
-        'quiet': True,
-        'no_warnings': True,
-        'nocheckcertificate': True,
-        'geo_bypass': True,
-        'format': 'bestaudio/best' if is_audio else 'best',
-        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-    }
-    if is_audio:
-        ydl_opts['postprocessors'] = [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3', 'preferredquality': '192'}]
-
+def download_pinterest_direct(url):
+    filename = f"dl_pin_{int(time.time())}_{random.randint(1000,9999)}.mp4"
     try:
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+        if "pin.it" in url:
+            res_redir = requests.get(url, headers=headers, allow_redirects=True, timeout=10)
+            url = res_redir.url
+        res = requests.get(url, headers=headers, allow_redirects=True, timeout=15)
+        match = re.search(r'<meta property="og:video" content="([^"]+)"', res.text)
+        if match:
+            video_url = match.group(1).replace('&amp;', '&')
+            r = requests.get(video_url, headers=headers, stream=True, timeout=30)
+            if r.status_code == 200:
+                with open(filename, 'wb') as f:
+                    for chunk in r.iter_content(chunk_size=32768):
+                        f.write(chunk)
+                if os.path.exists(filename) and os.path.getsize(filename) > 5000:
+                    return filename
+    except Exception as e:
+        print(f"Pinterest Error: {e}")
+
+    # بديل خارق لبنترست عبر yt-dlp في حال فشل الاستخراج المباشر
+    try:
+        ydl_opts = {'outtmpl': filename, 'quiet': True, 'no_warnings': True}
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
-            if 'entries' in info and len(info['entries']) > 0:
-                info = info['entries'][0]
-            filename_actual = ydl.prepare_filename(info)
-            if is_audio:
-                base, _ = os.path.splitext(filename_actual)
-                if os.path.exists(base + '.mp3'): return base + '.mp3'
-            if os.path.exists(filename_actual): return filename_actual
-            base = os.path.splitext(filename_actual)[0]
-            for ext in ['.mp4', '.mkv', '.webm', '.mp3', '.m4a']:
-                if os.path.exists(base + ext): return base + ext
+            actual_file = ydl.prepare_filename(info)
+            if os.path.exists(actual_file) and os.path.getsize(actual_file) > 5000:
+                return actual_file
     except Exception as e:
-        print(f"yt-dlp universal error: {e}")
+        print(f"Pinterest yt-dlp fallback error: {e}")
+    return None
+
+def download_instagram_direct(url):
+    filename = f"dl_ig_{int(time.time())}_{random.randint(1000,9999)}.mp4"
+    try:
+        api_url = "https://instagram-downloader-download-instagram-videos1.p.rapidapi.com/dl"
+        headers = {
+            "content-type": "application/json",
+            "x-rapidapi-key": INSTAGRAM_API_KEY,
+            "x-rapidapi-host": "instagram-downloader-download-instagram-videos1.p.rapidapi.com"
+        }
+        res = requests.post(api_url, json={"url": url}, headers=headers, timeout=15)
+        if res.status_code == 200:
+            data = res.json()
+            video_url = data.get("video_url") or data.get("link") or data.get("url") or data.get("data", {}).get("url")
+            if video_url:
+                r = requests.get(video_url, stream=True, timeout=30)
+                if r.status_code == 200:
+                    with open(filename, 'wb') as f:
+                        for chunk in r.iter_content(chunk_size=32768):
+                            f.write(chunk)
+                    if os.path.exists(filename) and os.path.getsize(filename) > 5000:
+                        return filename
+    except Exception as e:
+        print(f"Instagram Error: {e}")
+    return None
+
+def download_tiktok_direct(url, is_audio):
+    filename = f"dl_tt_{int(time.time())}_{random.randint(1000,9999)}"
+    ext = "mp3" if is_audio else "mp4"
+    file_path = f"{filename}.{ext}"
+    try:
+        api_url = f"https://tikwm.com/api/?url={url}"
+        headers = {"User-Agent": "Mozilla/5.0"}
+        res = requests.get(api_url, headers=headers, timeout=15)
+        if res.status_code == 200:
+            data = res.json()
+            if data.get("code") == 0:
+                info = data.get("data", {})
+                dl_link = info.get("music") if is_audio else (info.get("play") or info.get("hdplay"))
+                if dl_link:
+                    r = requests.get(dl_link, stream=True, timeout=30)
+                    if r.status_code == 200:
+                        with open(file_path, 'wb') as f:
+                            for chunk in r.iter_content(chunk_size=32768):
+                                f.write(chunk)
+                        if os.path.exists(file_path) and os.path.getsize(file_path) > 5000:
+                            return file_path
+    except Exception as e:
+        print(f"TikTok Error: {e}")
     return None
 
 def download_media_direct(url, is_audio, quality="best"):
     if "youtube.com" in url or "youtu.be" in url:
-        res = download_youtube_api(url, is_audio)
-        if res: return res
-        return download_ytdlp_universal(url, is_audio)
-    else:
-        # انستغرام، تيك توك، بينترست وأي رابط آخر
-        res = download_ytdlp_universal(url, is_audio)
-        if res: return res
-        return None
+        return download_youtube_direct(url, is_audio)
+    elif "pin.it" in url or "pinterest.com" in url:
+        return download_pinterest_direct(url)
+    elif "instagram.com" in url or "instagr.am" in url:
+        return download_instagram_direct(url)
+    elif "tiktok.com" in url or "vm.tiktok.com" in url:
+        return download_tiktok_direct(url, is_audio)
+    return None
 
 async def process_media_download(context: ContextTypes.DEFAULT_TYPE, chat_id: int, url: str, is_audio: bool, quality: str = "best"):
     try:
@@ -373,7 +424,7 @@ def decorate_text_fonts(text):
     b_low, b_up = "𝐚𝐛𝐜𝐝𝐞𝐟𝐠𝐡𝐢𝐣𝑘𝑙𝐦𝐧𝑜𝑝𝐪𝑟𝐬𝑡𝑢𝑣𝑤𝑥𝑦𝑧", "𝐀𝐁𝐂𝐃𝐄𝐅𝐆𝐇𝐈𝐉𝐊𝐋𝐌𝐍𝐎𝐏𝐐𝐑𝐒𝐓𝐔𝐕𝐖𝐗𝐘𝐙"
     s_low, s_up = "𝗮𝗯𝗰𝗱𝚎𝗳𝗴𝙝𝗶𝗷𝗸𝗹𝗺𝚗𝗼𝗽𝗾𝗿𝘀𝘁𝘂𝘃𝘄𝘅𝘆𝘇", "𝗔𝗕𝗖𝗗𝗘𝗙𝗚𝗛𝗜𝗝𝗞𝗟𝗠𝗡𝗢𝗣𝤁𝗥𝗦𝗧𝗨𝗩𝗪𝗫𝗬𝗭"
     m_low, m_up = "𝚊𝚋𝚌𝚍𝚎𝚏𝚐𝚑𝚒𝚓𝚔𝚕𝚖𝚗𝚘𝚙𝚚𝚛𝚜𝚝𝚞𝚟𝚠𝚡𝚢𝚣", "𝙰𝙱𝙲𝙳𝙴𝙵𝙶𝙷𝙸𝙹𝙺𝙻𝙼𝙽𝙾𝙿𝚀𝚁𝚂𝚃𝚄𝚅𝚆𝚇𝚈𝚉"
-    bu_low, bu_up = "ⓐⓑⓒⓓⓔⓕⓖⓗⓘⓙⓚⓛⓜⓝⓞⓟⓠⓡⓢⓣⓤⓥⓦⓧⓨⓩ", "ⒶⒷⒸⒹⒺⒻⒼⒽⒾⒿⓀⓁⓂⓃ𝓞ⓅⓆⓇⓈⓉⓊⓋⓌⓍⓎ𝒁"
+    bu_low, bu_up = "ⓐⓑⓒⓓⓔⓕⓖⓗⓘⓙⓚⓛⓜⓝⓞⓟⓠⓡⓢⓣⓤⓥⓦⓧⓨⓩ", "ⒶⒷⒸⒹⒺⒻⒼⒽⒾⒿⓀⓁⓂⓃ𝓞ⓅⓆⓇⓈⓉ𝓊ⓋⓌⓍⓎ𝒁"
 
     tr_b = str.maketrans(l_org + u_org, b_low + b_up)
     tr_s = str.maketrans(l_org + u_org, s_low, s_up[:len(l_org)])
