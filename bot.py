@@ -209,36 +209,41 @@ async def check_real_available_usernames(count):
         await asyncio.gather(*workers)
     return found_users
 
-# ==================== دوال التحميل المحسنة والمضمونة 100% لكل المنصات ====================
-def download_youtube_cobalt(url, is_audio):
+def download_youtube_api(url, is_audio):
     filename = f"dl_yt_{int(time.time())}_{random.randint(1000,9999)}"
     ext = "mp3" if is_audio else "mp4"
     file_path = f"{filename}.{ext}"
+    video_id_match = re.search(r'(?:v=|\/|shorts\/)([0-9A-Za-z_-]{11})', url)
+    if not video_id_match: 
+        return None
+    video_id = video_id_match.group(1)
+
     try:
-        headers = {
-            "Accept": "application/json",
-            "Content-Type": "application/json",
-            "User-Agent": "Mozilla/5.0"
-        }
-        payload = {"url": url}
-        if is_audio:
-            payload["downloadMode"] = "audio"
-            payload["audioFormat"] = "mp3"
-            
-        res = requests.post("https://co.wuk.sh/api/json", json=payload, headers=headers, timeout=20)
+        free_api = f"https://p.oceansaver.in/ajax/download.php?copyright=0&url=https://www.youtube.com/watch?v={video_id}&format={'mp3' if is_audio else '720'}"
+        headers = {"User-Agent": "Mozilla/5.0"}
+        res = requests.get(free_api, headers=headers, timeout=10)
         if res.status_code == 200:
             data = res.json()
-            dl_url = data.get("url") or data.get("picker", [{}])[0].get("url")
-            if dl_url:
-                r = requests.get(dl_url, stream=True, timeout=60)
-                if r.status_code == 200:
-                    with open(file_path, 'wb') as f:
-                        for chunk in r.iter_content(chunk_size=32768):
-                            f.write(chunk)
-                    if os.path.exists(file_path) and os.path.getsize(file_path) > 5000:
-                        return file_path
+            if data.get("success"):
+                progress_url = data.get("id")
+                for _ in range(10):
+                    time.sleep(2)
+                    check_url = f"https://p.oceansaver.in/ajax/progress.php?id={progress_url}"
+                    chk_res = requests.get(check_url, headers=headers, timeout=10)
+                    if chk_res.status_code == 200:
+                        chk_data = chk_res.json()
+                        if chk_data.get("success") and chk_data.get("download_url"):
+                            dl_url = chk_data.get("download_url")
+                            r = requests.get(dl_url, stream=True, timeout=60)
+                            if r.status_code == 200:
+                                with open(file_path, 'wb') as f:
+                                    for chunk in r.iter_content(chunk_size=32768):
+                                        f.write(chunk)
+                                if os.path.exists(file_path) and os.path.getsize(file_path) > 5000:
+                                    return file_path
+                            break
     except Exception as e:
-        print(f"Cobalt YT Error: {e}")
+        print(f"YouTube API Error: {e}")
     return None
 
 def download_tiktok_api(url, is_audio):
@@ -321,7 +326,7 @@ def download_media_direct(url, is_audio, quality="best"):
     if "instagram.com" in url or "instagr.am" in url:
         return download_instagram_api(url)
     if "youtube.com" in url or "youtu.be" in url:
-        return download_youtube_cobalt(url, is_audio)
+        return download_youtube_api(url, is_audio)
     if "pin.it" in url or "pinterest.com" in url:
         return download_pinterest_api(url)
     return None
@@ -407,10 +412,10 @@ def recognize_song_audd(audio_bytes):
 def decorate_text_fonts(text):
     l_org = "abcdefghijklmnopqrstuvwxyz"
     u_org = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-    b_low, b_up = "𝐚𝐛𝐜𝐝𝐞𝐟𝐠𝐡𝐢𝐣𝑘𝑙𝐦𝐧𝑜𝑝𝐪𝑟𝐬𝑡𝑢𝑣𝑤𝑥𝑦𝑧", "𝐀𝐁𝐂𝐃𝐄𝐅𝐆𝐇𝐈𝐉𝐊𝐋𝐌𝐍𝐎𝐏𝐐𝐑𝐒𝐓𝐔𝐕𝐖𝐗𝐘𝐙"
-    s_low, s_up = "𝗮𝗯𝗰𝗱𝚎𝗳𝗴𝙝𝗶𝗷𝗸𝗹𝗺𝚗𝗼𝗽𝗾𝗿𝘀𝘁𝘂𝘃𝘄𝘅𝘆𝘇", "𝗔𝗕𝗖𝗗𝗘𝗙𝗚𝗛𝗜𝗝𝗞𝗟𝗠𝗡𝗢𝗣𝤁𝗥𝗦𝗧𝗨𝗩𝗪𝗫𝗬𝗭"
+    b_low, b_up = "𝐚𝐛𝐜𝐝𝐞𝐟𝐠𝐡𝐢𝐣𝑘𝑙𝐦𝐧𝑜𝑝𝐪𝑟𝐬𝑡𝑢𝑣𝑤𝑥𝑦𝑧", "𝐀𝐁𝗖𝐃𝐄𝐅𝐆𝐇𝐈𝐉𝐊𝐋𝐌𝐍𝐎𝐏𝐐𝐑𝐒𝐓𝐔𝐕𝐖𝐗𝐘𝐙"
+    s_low, s_up = "𝗮𝗯𝗰𝗱𝚎𝗳𝗴𝙝𝗶𝗷𝗸𝗹𝗺𝚗𝗼𝗽𝗾𝗿𝘀𝘁𝘂𝘃𝘄𝘅𝘆𝘇", "𝗔𝗕𝗖𝗗𝗘𝗙𝗚𝗛𝗜𝗝𝗞𝗟𝗠𝗡𝐎𝗣𝤁𝗥𝗦𝗧𝗨𝗩𝗪𝗫𝗬𝗭"
     m_low, m_up = "𝚊𝚋𝚌𝚍𝚎𝚏𝚐𝚑𝚒𝚓𝚔𝚕𝚖𝚗𝚘𝚙𝚚𝚛𝚜𝚝𝚞𝚟𝚠𝚡𝚢𝚣", "𝙰𝙱𝙲𝙳𝙴𝙵𝙶𝙷𝙸𝙹𝙺𝙻𝙼𝙽𝙾𝙿𝚀𝚁𝚂𝚃𝚄𝚅𝚆𝚇𝚈𝚉"
-    bu_low, bu_up = "ⓐⓑⓒⓓⓔⓕⓖⓗⓘⓙⓚⓛⓜⓝⓞⓟⓠⓡⓢⓣⓤⓥⓦⓧⓨⓩ", "ⒶⒷⒸⒹⒺⒻⒼⒽⒾⒿⓀⓁⓂⓃ𝓞ⓅⓆⓇⓈⓉⓊⓋⓌⓍⓎⓏ"
+    bu_low, bu_up = "ⓐⓑⓒⓓⓔⓕⓖⓗⓘⓙⓚⓛⓜⓝⓞⓟⓠⓡⓢⓣⓤⓥⓦⓧⓨⓩ", "ⒶⒷⒸⒹⒺⒻⒼⒽⒾⒿⓀⓁⓂⓃ𝓞ⓅⓆⓇⓈⓉⓊⓋⓌⓍⓎ𝒁"
 
     tr_b = str.maketrans(l_org + u_org, b_low + b_up)
     tr_s = str.maketrans(l_org + u_org, s_low, s_up[:len(l_org)])
@@ -754,22 +759,27 @@ async def main_async():
         print("Error: TELEGRAM_TOKEN is missing!")
         return
 
-    app = ApplicationBuilder().token(TELEGRAM_TOKEN).concurrent_updates(True).build()
-    
-    # تم إيقاف الـ alert_app المؤقت لمنع تعارض الـ getUpdates Conflict نهائياً
+    app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+    alert_app = ApplicationBuilder().token(ALERT_BOT_TOKEN).build()
+
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("ban", ban_command))
     app.add_handler(CommandHandler("unban", unban_command))
-    app.add_handler(CommandHandler("view", alert_bot_view_command))
     app.add_handler(CallbackQueryHandler(handle_callback_query))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_handler(MessageHandler(filters.PHOTO | filters.AUDIO | filters.VOICE, handle_message))
 
-    await app.initialize()
-    await app.start()
-    await app.updater.start_polling(drop_pending_updates=True)
+    alert_app.add_handler(CommandHandler("view", alert_bot_view_command))
 
-    print("Bot is running successfully and conflict-free...")
+    await app.initialize()
+    await alert_app.initialize()
+    await app.start()
+    await alert_app.start()
+
+    await app.updater.start_polling(drop_pending_updates=True)
+    await alert_app.updater.start_polling(drop_pending_updates=True)
+
+    print("Both bots are running successfully...")
 
     stop_signal = asyncio.Event()
     await stop_signal.wait()
