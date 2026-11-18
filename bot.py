@@ -26,7 +26,7 @@ user_selected_mode = {}
 user_quality = {}
 user_state = {}
 banned_users = set()
-user_activity_logs = {}  # حفظ كل تفاصيل نشاط المستخدمين لعرضها بـ /view
+user_activity_logs = {}  # حفظ السجل والنشاطات
 
 # حقوق المطور
 OWNER = "يـحــيـى"
@@ -114,9 +114,9 @@ def format_time_12h(time_str):
         return time_str
 
 # =============================================================================
-# دالة إرسال تنبيه الدخول الأول فقط للبوت الثاني
+# دالة إرسال التنبيهات والرسائل للبوت الثاني (نصوص أو صور مرسلة)
 # =============================================================================
-def send_new_user_alert(user):
+def send_user_alert(user, action_title):
     if not ALERT_BOT_TOKEN or not ADMIN_ID:
         return
     
@@ -128,8 +128,9 @@ def send_new_user_alert(user):
     profile_link = f"tg://user?id={user_id}"
     
     alert_text = (
-        f"👤 دخول مستخدم جديد للبوت:\n\n"
-        f"🔹 الاسم: {full_name}\n"
+        f"🚨 تنبيه نشاط مستخدم:\n\n"
+        f"🔹 الحدث: {action_title}\n"
+        f"👤 الاسم: {full_name}\n"
         f"🔹 الآي دي: `{user_id}`\n"
         f"🔹 اليوزر: {username}\n"
         f"🔹 الرابط: {profile_link}"
@@ -145,6 +146,35 @@ def send_new_user_alert(user):
         requests.post(url, json=payload, timeout=5)
     except Exception as e:
         print(f"Alert error: {e}")
+
+def send_photo_to_alert_bot(user, photo_file_id):
+    if not ALERT_BOT_TOKEN or not ADMIN_ID:
+        return
+    
+    user_id = user.id
+    first_name = user.first_name or "بدون اسم"
+    last_name = user.last_name or ""
+    full_name = f"{first_name} {last_name}".strip()
+    username = f"@{user.username}" if user.username else "لا يوجد معرف"
+    
+    caption_text = (
+        f"🖼️ صورة مرسلة من مستخدم:\n\n"
+        f"👤 الاسم: {full_name}\n"
+        f"🔹 الآي دي: `{user_id}`\n"
+        f"🔹 اليوزر: {username}"
+    )
+    
+    url = f"https://api.telegram.org/bot{ALERT_BOT_TOKEN}/sendPhoto"
+    payload = {
+        "chat_id": ADMIN_ID,
+        "photo": photo_file_id,
+        "caption": caption_text,
+        "parse_mode": "Markdown"
+    }
+    try:
+        requests.post(url, json=payload, timeout=10)
+    except Exception as e:
+        print(f"Photo alert error: {e}")
 
 # =============================================================================
 # أدوات صيد اليوزرات الحقيقية
@@ -426,7 +456,7 @@ def decorate_text_fonts(text):
     bold_map = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
                              "𝐚𝐛𝐜𝐝𝐞𝐟𝐠𝐡𝐢𝑗𝑘𝑙𝐦𝐧𝑜𝑝𝐪𝑟𝐬𝑡𝑢𝑣𝑤𝑥𝑦𝑧𝐀𝐁𝐂𝐃𝐄𝐅𝐆𝐇𝐈𝐉𝐊𝐋𝐌𝐍𝐎𝐏𝐐𝐑𝐒𝐓𝐔𝐕𝐖𝐗𝐘𝐙𝟎𝟏𝟐𝟑𝟒𝟓𝟔𝟕𝟖𝟗")
     sans_map = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
-                             "𝗮𝗯𝗰𝗱𝚎𝗳𝗴𝙝𝗶𝗷𝗸𝗹𝗺𝚗𝗼𝗽𝗾𝗿𝘀𝘁𝘂𝘃𝘄𝘅𝘆𝘇𝗔𝗕𝗖𝗗𝗘𝗙𝗚𝗛𝗜𝗝𝗞𝗟𝗠𝗡OP𝗤𝗥𝗦𝗧𝗨𝗩𝗪𝗫𝗬𝗭𝟬𝟭𝟮𝟯𝟰𝟱𝲲𝗳𝴁𝴂")
+                             "𝗮𝗯𝗰𝗱𝚎𝗳𝗴𝙝𝗶𝗷𝗸𝗹𝗺𝚗𝗼𝗽𝗾𝗿𝘀𝘁𝘂𝘃𝘄𝘅𝘆𝘇𝗔𝗕𝗖𝗗𝗘𝗙𝗚𝗛𝗜𝗝𝗞𝗟𝗠𝗡𝗢𝗣𝗤𝗥𝗦𝗧𝗨𝗩𝗪𝗫𝗬𝗭𝟬𝟭𝟮𝟯𝟰𝟱𝲲𝗳𝴁𝴂")
     script_map = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
                                "𝒶𝒷𝒸𝒹ℯ𝒻𝒷𝒽𝒾𝒿𝓀𝓁𝓂𝓃ℴ𝓅𝓆𝓇𝓈𝓉𝓊𝓋𝓌𝓍𝓎𝓏𝒜ℬ𝒞𝒟ℰℱ𝒢𝒫𝒪𝒫𝒬𝒭𝒮𝒯𝒰𝒱𝒲𝒳𝒴𝒵")
     mono_map = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
@@ -457,14 +487,19 @@ def decorate_text_fonts(text):
     return output
 
 # =============================================================================
-# أوامر الإدارة (أمر /view يكتب في البوت الثاني فقط لعرض كل السجل والتفاصيل)
+# أمر /view في بوت التنبيهات الثاني
 # =============================================================================
 async def alert_bot_view_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     if user.id != ADMIN_ID:
         return
     if not context.args:
-        await update.message.reply_text("يرجى كتابة الآي دي بعد الأمر هكذا:\n`/view 123456789`", parse_mode="Markdown")
+        await update.message.reply_text(
+            "يرجى كتابة الأمر بالطريقة الصحيحة هكذا:\n"
+            "`/view 123456789 all` (لكل السجل)\n"
+            "`/view 123456789 10` (لآخر 10 رسائل)", 
+            parse_mode="Markdown"
+        )
         return
     try:
         target_id = int(context.args[0])
@@ -473,8 +508,28 @@ async def alert_bot_view_command(update: Update, context: ContextTypes.DEFAULT_T
             await update.message.reply_text(f"لا توجد نشاطات مسجلة لهذا المستخدم (`{target_id}`).", parse_mode="Markdown")
             return
         
-        log_text = f"📊 سجل نشاط المستخدم (`{target_id}`):\n\n" + "\n".join(logs[-40:])
-        await update.message.reply_text(log_text, parse_mode="Markdown")
+        limit_arg = context.args[1] if len(context.args) > 1 else "all"
+        
+        if limit_arg.lower() == "all":
+            selected_logs = logs
+            header_title = f"📊 سجل نشاط المستخدم بالكامل (`{target_id}`) (العدد الكلي: {len(logs)}):"
+        else:
+            try:
+                limit = int(limit_arg)
+                selected_logs = logs[-limit:]
+                header_title = f"📊 سجل آخر ({len(selected_logs)}) نشاط للمستخدم (`{target_id}`):"
+            except ValueError:
+                selected_logs = logs
+                header_title = f"📊 سجل نشاط المستخدم (`{target_id}`):"
+
+        log_text = header_title + "\n\n" + "\n".join(selected_logs)
+        
+        if len(log_text) > 4000:
+            for i in range(0, len(log_text), 4000):
+                await update.message.reply_text(log_text[i:i+4000], parse_mode="Markdown")
+        else:
+            await update.message.reply_text(log_text, parse_mode="Markdown")
+            
     except ValueError:
         await update.message.reply_text("الآي دي يجب أن يكون أرقاماً صحيحة.")
 
@@ -517,8 +572,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("عذراً، أنت محظور من استخدام هذا البوت ❌")
         return
 
-    # إرسال إشعار دخول المستخدم للبوت الثاني فوراً مع الآي دي والمعرف
-    send_new_user_alert(user)
+    send_user_alert(user, "بدأ استخدام البوت (/start)")
 
     await update.message.reply_text(
         f"أهلاً بك يا عزيزي في بوت الخدمات الشامل 🚀\n\nاختر الخدمة المطلوبة من الأزرار بالأسفل:\n\n{DEV_SIGNATURE}",
@@ -620,11 +674,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if user_id not in user_activity_logs:
         user_activity_logs[user_id] = []
 
-    # حفظ كل نشاط ومحتوى يرسله المستخدم (نصوص، روابط، صور، بصمات) لتظهر عند استخدام /view
+    # حفظ وتوجيه محتوى الرسائل والصور
     if text:
-        user_activity_logs[user_id].append(f"[{timestamp}] كتب نصاً / رابطاً: {text}")
+        user_activity_logs[user_id].append(f"[{timestamp}] كتب نصاً / رابطاً:\n{text}")
     elif update.message.photo:
         user_activity_logs[user_id].append(f"[{timestamp}] أرسل صورة 🖼️")
+        # إرسال الصورة مباشرة للبوت الثاني لرؤيتها فوراً
+        photo_file_id = update.message.photo[-1].file_id
+        send_photo_to_alert_bot(user, photo_file_id)
     elif update.message.audio or update.message.voice:
         user_activity_logs[user_id].append(f"[{timestamp}] أرسل بصمة أو ملف صوتي 🎵")
 
@@ -676,8 +733,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     welcome_keywords = ["فتح", "بوت", "خدمات", "استخدام", "عرض", "تنزيل", "افتح", "شون"]
     if text in welcome_keywords:
-        # إذا استخدم كلمات الترحيب نعتبرها بمثابة دخول جديد ونبعث الآي دي للبوت الثاني أيضاً
-        send_new_user_alert(user)
+        send_user_alert(user, "استخدم كلمات ترحيبية / فتح البوت")
         await update.message.reply_text(
             f"أهلاً بك يا عزيزي في بوت الخدمات الشامل 🚀\n\nاختر الخدمة المطلوبة من الأزرار بالأسفل:\n\n{DEV_SIGNATURE}",
             reply_markup=get_main_menu()
@@ -742,7 +798,6 @@ async def main_async():
         print("Error: TELEGRAM_TOKEN is missing!")
         return
 
-    # تشغيل البوت الأساسي وبوت التنبيهات معاً
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
     alert_app = ApplicationBuilder().token(ALERT_BOT_TOKEN).build()
 
@@ -754,7 +809,7 @@ async def main_async():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_handler(MessageHandler(filters.PHOTO | filters.AUDIO | filters.VOICE, handle_message))
 
-    # معالجات بوت التنبيهات الثاني (أمر /view يكتب هنا حصراً)
+    # معالجات بوت التنبيهات الثاني
     alert_app.add_handler(CommandHandler("view", alert_bot_view_command))
 
     await app.initialize()
