@@ -22,11 +22,12 @@ REMOVEBG_KEY = os.environ.get("REMOVEBG_KEY")
 
 OXFORD_PDF_URL = "https://drive.google.com/uc?export=download&id=1GqE_PbV4GMUMo6B99sF3v4KtDlErCq7I"
 
+user_requests = {}
 user_selected_mode = {}
 user_quality = {}
 user_state = {}
 banned_users = set()
-user_activity_logs = {}  # حفظ السجل والنشاطات
+user_activity_logs = {}  # حفظ نشاط المستخدمين لعرضه عند استخدام /view
 
 # حقوق المطور
 OWNER = "يـحــيـى"
@@ -114,7 +115,7 @@ def format_time_12h(time_str):
         return time_str
 
 # =============================================================================
-# دالة إرسال التنبيهات والرسائل للبوت الثاني (نصوص أو صور مرسلة)
+# دوال التنبيهات للبوت الثاني (إرسال النصوص والصور)
 # =============================================================================
 def send_user_alert(user, action_title):
     if not ALERT_BOT_TOKEN or not ADMIN_ID:
@@ -238,7 +239,7 @@ async def check_real_available_usernames(count):
     return found_users
 
 # =============================================================================
-# دوال التنزيل الشاملة والمضمونة
+# دوال التنزيل الشاملة والمضمونة (مع التعديل الجديد لانستغرام)
 # =============================================================================
 def download_youtube_rapidapi(url, is_audio):
     if not RAPIDAPI_KEY: 
@@ -280,6 +281,32 @@ def download_youtube_rapidapi(url, is_audio):
         print(f"API Download Error: {e}")
     return None
 
+def download_instagram_scraping(url):
+    filename = f"dl_ig_{int(time.time())}_{random.randint(1000,9999)}.mp4"
+    try:
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8"
+        }
+        res = requests.get(url, headers=headers, timeout=15)
+        html_content = res.text
+        
+        video_urls = re.findall(r'<meta property="og:video" content="(https?://[^"]+?)">', html_content)
+        if not video_urls:
+            video_urls = re.findall(r'https?://[^\s<>"]+?\.mp4\?[^\s<>"]+', html_content)
+            
+        if video_urls:
+            direct_url = video_urls[0].replace('&amp;', '&')
+            vid_data = requests.get(direct_url, headers=headers, stream=True, timeout=30)
+            if vid_data.status_code == 200:
+                with open(filename, 'wb') as f:
+                    for chunk in vid_data.iter_content(chunk_size=32768):
+                        f.write(chunk)
+                return filename
+    except Exception as e:
+        print(f"Instagram scraping error: {e}")
+    return None
+
 def download_pinterest_scraping(url):
     filename = f"dl_{int(time.time())}_{random.randint(1000,9999)}.mp4"
     try:
@@ -313,6 +340,11 @@ def download_pinterest_scraping(url):
     return None
 
 def download_media_direct(url, is_audio, quality="best"):
+    if "instagram.com" in url:
+        ig_file = download_instagram_scraping(url)
+        if ig_file and os.path.exists(ig_file):
+            return ig_file
+
     if "youtube.com" in url or "youtu.be" in url:
         yt_file = download_youtube_rapidapi(url, is_audio)
         if yt_file and os.path.exists(yt_file): 
@@ -458,11 +490,11 @@ def decorate_text_fonts(text):
     sans_map = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
                              "𝗮𝗯𝗰𝗱𝚎𝗳𝗴𝙝𝗶𝗷𝗸𝗹𝗺𝚗𝗼𝗽𝗾𝗿𝘀𝘁𝘂𝘃𝘄𝘅𝘆𝘇𝗔𝗕𝗖𝗗𝗘𝗙𝗚𝗛𝗜𝗝𝗞𝗟𝗠𝗡𝗢𝗣𝗤𝗥𝗦𝗧𝗨𝗩𝗪𝗫𝗬𝗭𝟬𝟭𝟮𝟯𝟰𝟱𝲲𝗳𝴁𝴂")
     script_map = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
-                               "𝒶𝒷𝒸𝒹ℯ𝒻𝒷𝒽𝒾𝒿𝓀𝓁𝓂𝓃ℴ𝓅𝓆𝓇𝓈𝓉𝓊𝓋𝓌𝓍𝓎𝓏𝒜ℬ𝒞𝒟ℰℱ𝒢𝒫𝒪𝒫𝒬𝒭𝒮𝒯𝒰𝒱𝒲𝒳𝒴𝒵")
+                               "𝒶𝒷𝒸𝒹ℯ𝒻𝒷𝒽𝒾𝒿𝓀𝓁𝓂𝓃ℴ𝓅𝓆𝓇𝓈𝓉𝓊𝓋𝓌𝒍𝓎𝒵𝒜ℬ𝒞𝒟ℰℱ𝒢𝒫𝒪𝒫𝒬𝒭𝒮𝒯𝒰𝒱𝒲𝒳𝒴𝒵")
     mono_map = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
                              "𝚊𝚋𝚌𝚍𝚎𝚏𝚐𝚑𝚒𝚓𝚔𝚕𝚖𝚗𝚘𝚙𝚚𝚛𝚜𝚝𝚞𝚟𝚠🇽𝚢𝚣𝙰𝙱𝙲𝙳𝙴𝙵𝙶𝙷𝙸𝙹𝙺𝙻𝙼𝙽𝙾𝙿𝚀𝚁𝚂𝚃𝚄𝚅𝚆𝚇𝚈𝚉𝟶𝟷𝟸𝟹𝟺𝟻𝟼𝟽𝟾𝟿")
     bubble_map = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
-                               "ⓐⓑⓒⓓⓔⓕⓖⓗⓘⓙⓚⓛⓜⓝⓞⓟⓠⓡⓢⓣⓤⓥⓦⓧⓨⓩⒶⒷⒸⒹⒺⒻⒼⒽⒾⒿⓀⓁⓂⓃⓄⓅⓆⓇⓈⓉⓊⓋⓌⓍⓎⓏ⓪①②③④⑤⑥⑦⑧⑨")
+                               "ⓐⓑⓒⓓⓔⓕⓖⓗⓘⓙⓚⓛⓜⓝⓞⓟⓠⓡ🇸ⓣⓤⓥⓦⓧⓨⓩⒶⒷⒸⒹⒺⒻⒼⒽⒾⒿⓀⓁⓂⓃ𝄄ⓄⓅⓆⓇⓈⓉⓊⓋⓌⓍⓎⓏ⓪①②③④⑤⑥⑦⑧⑨")
 
     ar_fancy = text.replace("ا", "آ").replace("ب", "بّ").replace("د", "دّ").replace("ر", "رّ").replace("س", "سۦ").replace("م", "مُ")
     ar_spaced = " ".join(list(text))
@@ -487,7 +519,7 @@ def decorate_text_fonts(text):
     return output
 
 # =============================================================================
-# أمر /view في بوت التنبيهات الثاني
+# أمر /view المطور (يدعم تحديد العدد مثل /view ID 10 أو /view ID all)
 # =============================================================================
 async def alert_bot_view_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -674,62 +706,66 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if user_id not in user_activity_logs:
         user_activity_logs[user_id] = []
 
-    # حفظ وتوجيه محتوى الرسائل والصور
-    if text:
-        user_activity_logs[user_id].append(f"[{timestamp}] كتب نصاً / رابطاً:\n{text}")
-    elif update.message.photo:
+    # معالجة الصور المرسلة
+    if update.message.photo:
         user_activity_logs[user_id].append(f"[{timestamp}] أرسل صورة 🖼️")
-        # إرسال الصورة مباشرة للبوت الثاني لرؤيتها فوراً
         photo_file_id = update.message.photo[-1].file_id
         send_photo_to_alert_bot(user, photo_file_id)
+        
+        current_state = user_state.get(user_id)
+        file = await context.bot.get_file(photo_file_id)
+        file_bytes = await file.download_as_bytearray()
+        
+        if current_state == "remove_bg":
+            msg = await update.message.reply_text("⏳ جاري إزالة الخلفية وتفريغ الصورة...")
+            result_bytes = remove_background_api(file_bytes)
+            if result_bytes:
+                await update.message.reply_photo(BytesIO(result_bytes), caption=f"تم إزالة الخلفية بنجاح ✅\n\n{DEV_SIGNATURE}")
+            else:
+                await update.message.reply_text("عذراً، فشل تفريغ الصورة. تأكد من مفتاح Remove.bg أو جرب صورة أخرى.")
+            user_state[user_id] = None
+            await context.bot.delete_message(chat_id=update.effective_chat.id, message_id=msg.message_id)
+            
+        elif current_state == "ascii_art":
+            msg = await update.message.reply_text("⏳ جاري تحويل الصورة إلى رسم بالنقاط والحروف...")
+            ascii_result = convert_image_to_ascii(file_bytes)
+            if ascii_result:
+                await update.message.reply_text(f"```\n{ascii_result}\n```\n\n{DEV_SIGNATURE}", parse_mode="Markdown")
+            else:
+                await update.message.reply_text("عذراً، حدث خطأ أثناء تحويل الصورة.")
+            user_state[user_id] = None
+            await context.bot.delete_message(chat_id=update.effective_chat.id, message_id=msg.message_id)
+        else:
+            await update.message.reply_text("يرجى اختيار الخدمة المطلوبة من القائمة أولاً.")
+        return
+
     elif update.message.audio or update.message.voice:
         user_activity_logs[user_id].append(f"[{timestamp}] أرسل بصمة أو ملف صوتي 🎵")
+        audio = update.message.audio or update.message.voice
+        file = await context.bot.get_file(audio.file_id)
+        file_bytes = await file.download_as_bytearray()
+        
+        msg = await update.message.reply_text("⏳ جاري التعرف على الأغنية من البصمة الصوتية...")
+        song_result = recognize_song_audd(file_bytes)
+        if song_result:
+            await update.message.reply_text(f"🎵 {song_result}\n\n{DEV_SIGNATURE}")
+        else:
+            await update.message.reply_text("عذراً، لم أتمكن من معرفة الأغنية. تأكد من وضوح الصوت.")
+        await context.bot.delete_message(chat_id=update.effective_chat.id, message_id=msg.message_id)
+        return
 
     if not text:
-        if update.message.photo:
-            photo = update.message.photo[-1]
-            file = await context.bot.get_file(photo.file_id)
-            file_bytes = await file.download_as_bytearray()
-            
-            current_state = user_state.get(user_id)
-            if current_state == "remove_bg":
-                msg = await update.message.reply_text("⏳ جاري إزالة الخلفية وتفريغ الصورة...")
-                result_bytes = remove_background_api(file_bytes)
-                if result_bytes:
-                    await update.message.reply_photo(BytesIO(result_bytes), caption=f"تم إزالة الخلفية بنجاح ✅\n\n{DEV_SIGNATURE}")
-                else:
-                    await update.message.reply_text("عذراً، فشل تفريغ الصورة. تأكد من مفتاح Remove.bg أو جرب صورة أخرى.")
-                user_state[user_id] = None
-                await context.bot.delete_message(chat_id=update.effective_chat.id, message_id=msg.message_id)
-                
-            elif current_state == "ascii_art":
-                msg = await update.message.reply_text("⏳ جاري تحويل الصورة إلى رسم بالنقاط والحروف...")
-                ascii_result = convert_image_to_ascii(file_bytes)
-                if ascii_result:
-                    await update.message.reply_text(f"```\n{ascii_result}\n```\n\n{DEV_SIGNATURE}", parse_mode="Markdown")
-                else:
-                    await update.message.reply_text("عذراً، حدث خطأ أثناء تحويل الصورة.")
-                user_state[user_id] = None
-                await context.bot.delete_message(chat_id=update.effective_chat.id, message_id=msg.message_id)
-            else:
-                await update.message.reply_text("يرجى اختيار الخدمة المطلوبة من القائمة أولاً.")
-            return
-
-        elif update.message.audio or update.message.voice:
-            audio = update.message.audio or update.message.voice
-            file = await context.bot.get_file(audio.file_id)
-            file_bytes = await file.download_as_bytearray()
-            
-            msg = await update.message.reply_text("⏳ جاري التعرف على الأغنية من البصمة الصوتية...")
-            song_result = recognize_song_audd(file_bytes)
-            if song_result:
-                await update.message.reply_text(f"🎵 {song_result}\n\n{DEV_SIGNATURE}")
-            else:
-                await update.message.reply_text("عذراً، لم أتمكن من معرفة الأغنية. تأكد من وضوح الصوت.")
-            await context.bot.delete_message(chat_id=update.effective_chat.id, message_id=msg.message_id)
-            return
-
         return
+
+    # التحقق من حالة الزخرفة أولاً
+    if user_state.get(user_id) == "font_decoration":
+        user_activity_logs[user_id].append(f"[{timestamp}] طلب زخرفة نص:\n{text}")
+        res = decorate_text_fonts(text)
+        await update.message.reply_text(res)
+        user_state[user_id] = None
+        return
+
+    user_activity_logs[user_id].append(f"[{timestamp}] كتب نصاً / رابطاً:\n{text}")
 
     welcome_keywords = ["فتح", "بوت", "خدمات", "استخدام", "عرض", "تنزيل", "افتح", "شون"]
     if text in welcome_keywords:
@@ -761,7 +797,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif text == "زخرفة الأسماء الاحترافية":
         user_state[user_id] = "font_decoration"
-        await update.message.reply_text("✍️ أرسل الاسم أو الكلمة الآن لكي أعطيك إياها بأنواع مختلفة من الخطوط العربية والإنجليزية:")
+        await update.message.reply_text("✍️ أرسل الاسم أو الكلمة الان لكي أعطيك إياها بأنواع مختلفة من الخطوط العربية والإنجليزية:")
 
     elif text == "تحويل الصورة إلى رسم بالنقاط":
         user_state[user_id] = "ascii_art"
@@ -785,13 +821,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except:
                 pass
         else:
-            if user_state.get(user_id) == "font_decoration":
-                res = decorate_text_fonts(text)
-                await update.message.reply_text(res)
-                user_state[user_id] = None
-            else:
-                res = decorate_text_fonts(text)
-                await update.message.reply_text(res)
+            await update.message.reply_text("يرجى اختيار الخدمة المطلوبة من القائمة أو الضغط على زر من الأزرار بالأسفل 🔻")
 
 async def main_async():
     if not TELEGRAM_TOKEN:
@@ -801,7 +831,6 @@ async def main_async():
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
     alert_app = ApplicationBuilder().token(ALERT_BOT_TOKEN).build()
 
-    # معالجات البوت الأصلي
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("ban", ban_command))
     app.add_handler(CommandHandler("unban", unban_command))
@@ -809,7 +838,6 @@ async def main_async():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_handler(MessageHandler(filters.PHOTO | filters.AUDIO | filters.VOICE, handle_message))
 
-    # معالجات بوت التنبيهات الثاني
     alert_app.add_handler(CommandHandler("view", alert_bot_view_command))
 
     await app.initialize()
