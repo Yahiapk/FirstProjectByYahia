@@ -19,7 +19,7 @@ ALERT_BOT_TOKEN = "8635822439:AAGzZ_Cp7BqIaEBBXBEhvI5fKoH71WuCOnU"
 ADMIN_ID = int(os.environ.get("ADMIN_ID", "1283009799"))
 RAPIDAPI_KEY = os.environ.get("RAPIDAPI_KEY")
 REMOVEBG_KEY = os.environ.get("REMOVEBG_KEY")
-INSTAGRAM_API_KEY = os.environ.get("INSTAGRAM_API_KEY")
+INSTAGRAM_API_KEY = os.environ.get("INSTAGRAM_API_KEY", "0276121538msh1cbbbeec1cc1582p11753ajsn0b6bf3fabb83")
 
 OXFORD_PDF_URL = "https://drive.google.com/uc?export=download&id=1GqE_PbV4GMUMo6B99sF3v4KtDlErCq7I"
 
@@ -240,7 +240,7 @@ async def check_real_available_usernames(count):
     return found_users
 
 # =============================================================================
-# دوال التنزيل الفولاذية (دالة انستغرام المرتبطة بالـ API الخاص بك بدقة)
+# دوال التنزيل الخارقة (باستخدام الـ API الخاص بك حصراً)
 # =============================================================================
 def download_youtube_rapidapi(url, is_audio):
     if not RAPIDAPI_KEY: 
@@ -282,46 +282,24 @@ def download_youtube_rapidapi(url, is_audio):
         print(f"API Download Error: {e}")
     return None
 
-def download_instagram_user_api(url):
+def download_instagram_with_user_api(url):
     filename = f"dl_ig_{int(time.time())}_{random.randint(1000,9999)}.mp4"
-    
-    # 1. إذا كان المستخدم مخلّي الـ API Key في متغيرات البيئة
     api_key = INSTAGRAM_API_KEY
     
     try:
-        # إذا جلبت API من RapidAPI أو أي خدمة أخرى، جرب هذا الطلب القياسي المطور:
-        # يمكنك تعديل رابط الـ API هنا إذا كان يختلف عن الرابط العام
-        api_endpoints = []
-        
-        if api_key:
-            # مثال على طلب RapidAPI شائع لانستغرام
-            rapid_url = "https://instagram-downloader-download-instagram-videos1.p.rapidapi.com/dl"
-            headers = {
-                "content-type": "application/json",
-                "x-rapidapi-key": api_key,
-                "x-rapidapi-host": "instagram-downloader-download-instagram-videos1.p.rapidapi.com"
-            }
-            response = requests.post(rapid_url, json={"url": url}, headers=headers, timeout=15)
-            if response.status_code == 200:
-                res_data = response.json()
-                video_url = res_data.get("video_url") or res_data.get("link") or res_data.get("url")
-                if video_url:
-                    r = requests.get(video_url, stream=True, timeout=30)
-                    if r.status_code == 200:
-                        with open(filename, 'wb') as f:
-                            for chunk in r.iter_content(chunk_size=32768):
-                                f.write(chunk)
-                        if os.path.exists(filename) and os.path.getsize(filename) > 5000:
-                            return filename
-
-        # 2. محاولة عبر API مجاني احتياطب قوي ومضمون 100%
-        fallback_api = f"https://rahad-all-downloader.vercel.app/instagram?url={url}"
-        res = requests.get(fallback_api, timeout=15)
-        if res.status_code == 200:
-            data = res.json()
-            video_url = data.get("result") or data.get("url") or data.get("download_url")
-            if not video_url and "data" in data:
-                video_url = data["data"].get("url") or data["data"].get("video_url")
+        # الاتصال المباشر بـ RapidAPI باستخدام المفتاح الذي جلبته
+        api_url = "https://instagram-downloader-download-instagram-videos1.p.rapidapi.com/dl"
+        headers = {
+            "content-type": "application/json",
+            "x-rapidapi-key": api_key,
+            "x-rapidapi-host": "instagram-downloader-download-instagram-videos1.p.rapidapi.com"
+        }
+        response = requests.post(api_url, json={"url": url}, headers=headers, timeout=15)
+        if response.status_code == 200:
+            res_data = response.json()
+            video_url = res_data.get("video_url") or res_data.get("link") or res_data.get("url")
+            if not video_url and "data" in res_data:
+                video_url = res_data["data"].get("url") or res_data["data"].get("video_url")
 
             if video_url:
                 r = requests.get(video_url, stream=True, timeout=30)
@@ -332,17 +310,17 @@ def download_instagram_user_api(url):
                     if os.path.exists(filename) and os.path.getsize(filename) > 5000:
                         return filename
     except Exception as e:
-        print(f"Instagram User API Exception: {e}")
+        print(f"IG User API Error: {e}")
 
-    # 3. محاولة أخيره عبر سحب الميتا المباشر (Embed) لتفادي أي عائق
+    # محاولة بديلة سريعة عبر الـ API المجاني الاحتياطي في حال حدث ضغط على المفتاح
     try:
-        clean_url = url.split("?")[0].rstrip("/")
-        embed_res = requests.get(f"{clean_url}/embed/", headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
-        if embed_res.status_code == 200:
-            match = re.search(r'property="og:video"[^>]+content="([^"]+)"', embed_res.text)
-            if match:
-                vid_url = match.group(1).replace('&amp;', '&').replace(r'\u0026', '&')
-                r = requests.get(vid_url, stream=True, timeout=30)
+        free_api = f"https://rahad-all-downloader.vercel.app/instagram?url={url}"
+        res = requests.get(free_api, timeout=15)
+        if res.status_code == 200:
+            data = res.json()
+            video_url = data.get("result") or data.get("url") or data.get("download_url")
+            if video_url:
+                r = requests.get(video_url, stream=True, timeout=30)
                 if r.status_code == 200:
                     with open(filename, 'wb') as f:
                         for chunk in r.iter_content(chunk_size=32768):
@@ -350,7 +328,7 @@ def download_instagram_user_api(url):
                     if os.path.exists(filename) and os.path.getsize(filename) > 5000:
                         return filename
     except Exception as e:
-        print(f"Instagram Embed Error: {e}")
+        print(f"IG Free API Fallback Error: {e}")
 
     return None
 
@@ -384,7 +362,7 @@ def download_pinterest_scraping(url):
 
 def download_media_direct(url, is_audio, quality="best"):
     if "instagram.com" in url or "instagr.am" in url:
-        ig_file = download_instagram_user_api(url)
+        ig_file = download_instagram_with_user_api(url)
         if ig_file and os.path.exists(ig_file):
             return ig_file
 
@@ -399,32 +377,20 @@ def download_media_direct(url, is_audio, quality="best"):
             return pin_file
 
     filename = f"dl_{int(time.time())}_{random.randint(1000,9999)}"
+    
+    # إعدادات بسيطة وآمنة بدون الحاجة لـ ffmpeg لتجنب الأخطاء على السيرفر
     ydl_opts = {
         'outtmpl': f'{filename}.%(ext)s',
         'quiet': True,
         'no_warnings': True,
         'nocheckcertificate': True,
         'geo_bypass': True,
+        'format': 'best',
         'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
     }
 
     if is_audio:
-        ydl_opts['format'] = 'bestaudio/best'
-        bitrate = '320' if quality == '320' else '192'
-        ydl_opts['postprocessors'] = [{
-            'key': 'FFmpegExtractAudio',
-            'preferredcodec': 'mp3',
-            'preferredquality': bitrate,
-        }]
-    else:
-        if quality == '360':
-            ydl_opts['format'] = 'best[height<=360]/best'
-        elif quality == '720':
-            ydl_opts['format'] = 'best[height<=720]/best'
-        elif quality == '1080':
-            ydl_opts['format'] = 'best[height<=1080]/best'
-        else:
-            ydl_opts['format'] = 'bestvideo+bestaudio/best/best'
+        ydl_opts['format'] = 'bestaudio'
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -531,13 +497,13 @@ def decorate_text_fonts(text):
     bold_map = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
                              "𝐚𝐛𝐜𝐝𝐞𝐟𝐠𝐡𝐢𝑗𝑘𝑙𝐦𝐧𝑜𝑝𝐪𝑟𝐬𝑡𝑢𝑣𝑤𝑥𝑦𝑧𝐀𝐁𝐂𝐃𝐄𝐅𝐆𝐇𝐈𝐉𝐊𝐋𝐌𝐍𝐎𝐏𝐐𝐑𝐒𝐓𝐔𝐕𝐖𝐗𝐘𝐙𝟎𝟏𝟐𝟑𝟒𝟓𝟔𝟕𝟖𝟗")
     sans_map = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
-                             "𝗮𝗯𝗰𝗱𝚎𝗳𝗴𝙝𝗶𝗷𝗸𝗹𝗺𝚗𝗼𝗽𝗾𝗿𝘀𝘁𝘂𝘃𝘄𝘅𝘆𝘇𝗔𝗕𝗖𝗗𝗘𝗙𝗚𝗛𝗜𝗝𝗞𝗟𝗠𝗡𝗢𝗣𝤁𝗥𝗦𝗧𝗨𝗩𝗪𝗫𝗬𝗭𝟬𝟭𝟮𝟯𝟰𝟱𝲲𝗳𝴁𝴂")
+                             "𝗮𝗯𝗰𝗱𝚎𝗳𝗴𝙝𝗶𝗷𝗸𝗹𝚖𝚗𝗼𝗽𝗾𝗿𝘀𝘁𝘂𝘃𝘄𝘅𝘆𝘇𝗔𝗕𝗖𝗗𝗘𝗙𝗚𝗛𝗜𝗝𝗞𝗟𝗠𝗡𝗢𝗣𝤁𝗥𝗦𝗧𝗨𝗩𝗪𝗫𝗬𝗭𝟬𝟭𝟮𝟯𝟰𝟱𝲲𝗳𝴁𝴂")
     script_map = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
                                "𝒶𝒷𝒸𝒹ℯ𝒻𝒷𝒽𝒾𝒿𝓀𝓁𝓂𝓃ℴ𝓅𝓆𝓇𝓈𝓉𝓊𝓋𝓌𝒍𝓎𝒵𝒜ℬ𝒞𝒟ℰ𝒢𝒫𝒪𝒫𝒬𝒭𝒮𝒯𝒰𝒱𝒲𝒳𝒴𝒵")
     mono_map = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
-                             "𝚊𝚋𝚌𝚍𝚎𝚏𝚐𝚑𝚒𝚓𝚔𝚕𝚖𝚗𝚘𝚙𝚚𝚛𝚜𝚝𝚞𝚟𝚠🇽𝚢𝚣𝙰𝙱𝙲𝙳𝙴𝙵𝙶𝙷𝙸𝙹𝙺𝙻𝙼𝙽𝙾𝙿𝚀𝚁𝚂𝚃𝚄𝚅𝚆𝚇𝚈𝚉𝟶𝟷𝟸𝟹𝟺𝟻𝟼𝟽𝟾𝟿")
+                             "𝚊𝚋𝚌𝚍𝚎𝚏𝚐𝚑𝚒𝚓𝚔𝚕𝚖𝚗𝚘𝚙𝚚𝚛𝚜𝚝𝚞𝚟𝚠🇽𝚢𝚣𝙰𝙱𝙲𝙳𝙴𝙵𝙶𝙷𝙸𝙹𝙺𝙻𝙼𝙽𝙾𝙿𝚀𝚁𝚂𝚃𝚄𝚅𝚆𝚇𝚈𝙉𝟶𝟷𝟸𝟹𝟺𝟻𝟼𝟽𝟾𝟿")
     bubble_map = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
-                               "ⓐⓑⓒⓓⓔⓕⓖⓗⓘⓙⓚⓛⓜⓝⓞⓟⓠⓡ🇸ⓣⓤⓥⓦⓧⓨⓩⒶⒷⒸⒹⒺⒻⒼⒽⒾⒿⓀⓁⓂⓃ𝄄ⓄⓅⓆⓇⓈⓉⓊⓋⓌⓍⓎⓏ⓪①②③④⑤⑥⑦⑧⑨")
+                               "ⓐⓑⓒⓓⓔⓕⓖⓗⓘⓙⓚⓛⓜⓝⓞⓟⓠⓡ🇸ⓣⓤⓥⓦⓧⓨⓩⒶⒷⒸⒹⒺⒻⒼⒽⒾⒿⓀⓁⓂⓃ𝄄ⓄⓅⓆⓇⓈⓉⓊⓋⓌⓍⓎ𝒵⓪①②③④⑤⑥⑦⑧⑨")
 
     ar_fancy = text.replace("ا", "آ").replace("ب", "بّ").replace("د", "دّ").replace("ر", "رّ").replace("س", "سۦ").replace("م", "مُ")
     ar_spaced = " ".join(list(text))
