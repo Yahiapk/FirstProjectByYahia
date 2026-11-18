@@ -240,7 +240,7 @@ async def check_real_available_usernames(count):
     return found_users
 
 # =============================================================================
-# دوال التنزيل (يوتيوب عبر RapidAPI الآمن 100%، انستا، بينترست)
+# دوال التنزيل الشاملة (يوتيوب، تيك توك، انستغرام، بينترست)
 # =============================================================================
 def download_youtube_rapidapi(url, is_audio):
     filename = f"dl_yt_{int(time.time())}_{random.randint(1000,9999)}"
@@ -252,36 +252,6 @@ def download_youtube_rapidapi(url, is_audio):
         return None
     video_id = video_id_match.group(1)
 
-    # محاولة استخدام RapidAPI الرسمي إذا كان المفتاح موجوداً
-    if RAPIDAPI_KEY:
-        try:
-            api_url = "https://youtube-media-downloader.p.rapidapi.com/v2/video/details"
-            headers = {"x-rapidapi-key": RAPIDAPI_KEY, "x-rapidapi-host": "youtube-media-downloader.p.rapidapi.com"}
-            res = requests.get(api_url, headers=headers, params={"videoId": video_id}, timeout=15)
-            if res.status_code == 200:
-                data = res.json()
-                download_link = None
-                if is_audio:
-                    audios = data.get("audios", {}).get("items", [])
-                    if audios: 
-                        download_link = audios[0].get("url")
-                else:
-                    videos = data.get("videos", {}).get("items", [])
-                    if videos: 
-                        download_link = videos[0].get("url")
-
-                if download_link:
-                    r = requests.get(download_link, stream=True, timeout=120)
-                    if r.status_code == 200:
-                        with open(file_path, 'wb') as f:
-                            for chunk in r.iter_content(chunk_size=32768):
-                                f.write(chunk)
-                        if os.path.exists(file_path) and os.path.getsize(file_path) > 5000:
-                            return file_path
-        except Exception as e:
-            print(f"RapidAPI YT Error: {e}")
-
-    # بديل مجاني وسريع جداً لتنزيل يوتيوب بدون حظر وبدون بوتات
     try:
         free_api = f"https://p.oceansaver.in/ajax/download.php?copyright=0&url=https://www.youtube.com/watch?v={video_id}&format={'mp3' if is_audio else '720'}"
         headers = {"User-Agent": "Mozilla/5.0"}
@@ -290,7 +260,6 @@ def download_youtube_rapidapi(url, is_audio):
             data = res.json()
             if data.get("success"):
                 progress_url = data.get("id")
-                # انتظار اكتمال التجهيز
                 for _ in range(10):
                     time.sleep(3)
                     check_url = f"https://p.oceansaver.in/ajax/progress.php?id={progress_url}"
@@ -308,11 +277,35 @@ def download_youtube_rapidapi(url, is_audio):
                                     return file_path
                             break
     except Exception as e:
-        print(f"Free YT API Error: {e}")
-
+        print(f"YT API Error: {e}")
     return None
 
-def download_instagram_with_user_api(url):
+def download_tiktok_api(url, is_audio):
+    filename = f"dl_tt_{int(time.time())}_{random.randint(1000,9999)}"
+    ext = "mp3" if is_audio else "mp4"
+    file_path = f"{filename}.{ext}"
+    try:
+        api_url = f"https://tikwm.com/api/?url={url}"
+        headers = {"User-Agent": "Mozilla/5.0"}
+        res = requests.get(api_url, headers=headers, timeout=15)
+        if res.status_code == 200:
+            data = res.json()
+            if data.get("code") == 0:
+                info = data.get("data", {})
+                dl_link = info.get("music") if is_audio else (info.get("play") or info.get("hdplay"))
+                if dl_link:
+                    r = requests.get(dl_link, stream=True, timeout=30)
+                    if r.status_code == 200:
+                        with open(file_path, 'wb') as f:
+                            for chunk in r.iter_content(chunk_size=32768):
+                                f.write(chunk)
+                        if os.path.exists(file_path) and os.path.getsize(file_path) > 5000:
+                            return file_path
+    except Exception as e:
+        print(f"TikTok API Error: {e}")
+    return None
+
+def download_instagram_api(url):
     filename = f"dl_ig_{int(time.time())}_{random.randint(1000,9999)}.mp4"
     try:
         free_api = f"https://rahad-all-downloader.vercel.app/instagram?url={url}"
@@ -356,8 +349,11 @@ def download_pinterest_fixed(url):
     return None
 
 def download_media_direct(url, is_audio, quality="best"):
+    if "tiktok.com" in url or "vm.tiktok.com" in url:
+        return download_tiktok_api(url, is_audio)
+
     if "instagram.com" in url or "instagr.am" in url:
-        return download_instagram_with_user_api(url)
+        return download_instagram_api(url)
 
     if "youtube.com" in url or "youtu.be" in url:
         return download_youtube_rapidapi(url, is_audio)
@@ -449,19 +445,19 @@ def recognize_song_audd(audio_bytes):
     return None
 
 # =============================================================================
-# دالة زخرفة الخطوط الآمنة والمضمونة 100% (عربي + إنجليزي - بدون أي أخطاء)
+# دالة زخرفة الخطوط الآمنة والمضمونة 100%
 # =============================================================================
 def decorate_text_fonts(text):
     l_org = "abcdefghijklmnopqrstuvwxyz"
     u_org = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
     
     b_low, b_up = "𝐚𝐛𝐜𝐝𝐞𝐟𝐠𝐡𝐢𝐣𝑘𝑙𝐦𝐧𝑜𝑝𝐪𝑟𝐬𝑡𝑢𝑣𝑤𝑥𝑦𝑧", "𝐀𝐁𝐂𝐃𝐄𝐅𝐆𝐇𝐈𝐉𝐊𝐋𝐌𝐍𝐎𝐏𝐐𝐑𝐒𝐓𝐔𝐕𝐖𝐗𝐘𝐙"
-    s_low, s_up = "𝗮𝗯𝗰𝗱𝚎𝗳𝗴𝙝𝗶𝗷𝗸𝗹𝗺𝚗𝗼𝗽𝗾𝗿𝘀𝘁𝘂𝘃𝘄𝘅𝘆𝘇", "𝗔𝗕𝗖𝗗𝗘𝗙𝗚𝗛𝗜𝗝𝗞𝗟𝗠𝗡𝗢𝗣𝗤𝗥𝗦𝗧𝗨𝗩𝗪𝗫𝗬𝗭"
-    m_low, m_up = "𝚊𝚋𝚌𝚍𝚎𝚏𝚐𝚑𝚒𝚓𝚔𝚕𝚖𝚗𝚘𝚙𝚚𝚛𝚜𝚝𝚞𝚟𝚠𝚡𝚢𝚣", "𝙰𝙱𝙲𝙳𝙴𝙵𝙶𝙷𝙸𝙹𝙺𝙻𝙼𝙽𝙾𝙿𝚀𝚁𝚂𝚃𝚄𝚅𝚆𝚇𝚈𝙉"
-    bu_low, bu_up = "ⓐⓑⓒⓓⓔⓕⓖⓗⓘⓙⓚⓛⓜⓝⓞⓟⓠⓡⓢⓣⓤⓥⓦⓧⓨⓩ", "ⒶⒷⒸⒹⒺⒻⒼⒽⒾⒿⓀⓁⓂⓃ𝓞ⓅⓆⓇⓈⓉⓊⓋⓌⓍⓎⓏ"
+    s_low, s_up = "𝗮𝗯𝗰𝗱𝚎𝗳𝗴𝙝𝗶𝗷𝗸𝗹𝗺𝚗𝗼𝗽𝗾𝗿𝘀𝘁𝘂𝘃𝘄𝘅𝘆𝘇", "𝗔𝗕𝗖𝗗𝗘𝗙𝗚𝗛𝗜𝗝𝗞𝗟𝗠𝗡-𝗢𝗣𝤁𝗥𝗦𝗧𝗨𝗩𝗪𝗫𝗬𝗭"
+    m_low, m_up = "𝚊𝚋𝚌𝚍𝚎𝚏𝚐𝚑𝚒𝚓𝚔𝚕𝚖𝚗𝚘𝚙𝚚𝚛𝚜𝚝𝚞𝚟𝚠𝚡𝚢𝚣", "𝙰𝙱𝙲𝙳𝙴𝙵𝙶𝙷𝙸𝙹𝙺𝙻𝙼𝙽𝙾𝙿𝚀𝚁𝚂𝚃𝚄𝚅𝚆𝚇𝚈𝚉"
+    bu_low, bu_up = "ⓐⓑⓒⓓⓔⓕⓖⓗⓘⓙⓚⓛⓜⓝⓞⓟⓠⓡⓢⓣⓤⓥⓦⓧⓨⓩ", "ⒶⒷⒸⒹⒺⒻⒼⒽⒾⒿⓀⓁⓂⓃⓄⓅⓆⓇⓈⓉⓊⓋⓌⓍⓎⓏ"
 
     tr_b = str.maketrans(l_org + u_org, b_low + b_up)
-    tr_s = str.maketrans(l_org + u_org, s_low + s_up)
+    tr_s = str.maketrans(l_org + u_org, s_low, s_up[:len(l_org)]) # لتجنب التفاوت
     tr_m = str.maketrans(l_org + u_org, m_low + m_up)
     tr_bu = str.maketrans(l_org + u_org, bu_low + bu_up)
 
@@ -473,23 +469,22 @@ def decorate_text_fonts(text):
     output_lines = [
         f"✒️ **نتائج الزخرفة الاحترافية لنصك ({text}):**\n",
         f"1. **عريض فخم:** `{text.translate(tr_b)}`",
-        f"2. **حديث غامق:** `{text.translate(tr_s)}`",
-        f"3. **آلة كاتبة:** `{text.translate(tr_m)}`",
-        f"4. **دوائر محيطة:** `{text.translate(tr_bu)}`",
-        f"5. **زخرفة عربية مميزة:** `{ar_t4}`",
-        f"6. **تشكيل عربي منسق:** `{ar_t1}`",
-        f"7. **حروف عربية مباعدة:** `{ar_t2}`",
-        f"8. **حروف عربية ممدودة:** `{ar_t3}`",
-        f"9. **أقواس مزدوجة:** `《 {text} 》`",
-        f"10. **أقواس مربعة:** `【 {text.translate(tr_s)} 】`",
-        f"11. **إطار خطوط:** `--- {text} ---`",
-        f"12. **أقواس أنيقة:** `(( {text.translate(tr_b)} ))`",
-        f"13. **زخرفة مميزة:** `// {text} //`",
-        f"14. **أقواس مفردة:** `[ {text} ]`",
-        f"15. **خطوط متصلة:** `~*~ {text} ~*~`",
+        f"2. **آلة كاتبة:** `{text.translate(tr_m)}`",
+        f"3. **دوائر محيطة:** `{text.translate(tr_bu)}`",
+        f"4. **زخرفة عربية مميزة:** `{ar_t4}`",
+        f"5. **تشكيل عربي منسق:** `{ar_t1}`",
+        f"6. **حروف عربية مباعدة:** `{ar_t2}`",
+        f"7. **حروف عربية ممدودة:** `{ar_t3}`",
+        f"8. **أقواس مزدوجة:** `《 {text} 》`",
+        f"9. **أقواس مربعة:** `【 {text} 】`",
+        f"10. **إطار خطوط:** `--- {text} ---`",
+        f"11. **أقواس أنيقة:** `(( {text} ))`",
+        f"12. **زخرفة مميزة:** `// {text} //`",
+        f"13. **أقواس مفردة:** `[ {text} ]`",
+        f"14. **خطوط متصلة:** `~*~ {text} ~*~`",
     ]
 
-    for i in range(16, 41):
+    for i in range(15, 36):
         if i % 2 == 0:
             output_lines.append(f"{i}. **زخرفة إضافية ({i}):** `⟨ {text} ⟩`")
         else:
