@@ -239,101 +239,46 @@ async def check_real_available_usernames(count):
     return found_users
 
 # =============================================================================
-# دوال التنزيل الخارقة والمحدثة (يوتيوب، انستا، بينترست)
+# دوال التنزيل الخارقة (تنزيل بنترست المحدث والمضمون)
 # =============================================================================
-def download_youtube_fixed(url, is_audio):
-    filename = f"dl_yt_{int(time.time())}_{random.randint(1000,9999)}"
+def download_youtube_rapidapi(url, is_audio):
+    if not RAPIDAPI_KEY: 
+        return None
+    filename = f"dl_{int(time.time())}_{random.randint(1000,9999)}"
+    ext = "mp3" if is_audio else "mp4"
+    file_path = f"{filename}.{ext}"
+
+    api_url = "https://youtube-media-downloader.p.rapidapi.com/v2/video/details"
+    headers = {"x-rapidapi-key": RAPIDAPI_KEY, "x-rapidapi-host": "youtube-media-downloader.p.rapidapi.com"}
     
-    # محاولة أولى عبر واجهة سريعة وموثوقة لـ RapidAPI إذا توفر المفتاح
-    if RAPIDAPI_KEY:
-        try:
-            api_url = "https://youtube-media-downloader.p.rapidapi.com/v2/video/details"
-            headers = {"x-rapidapi-key": RAPIDAPI_KEY, "x-rapidapi-host": "youtube-media-downloader.p.rapidapi.com"}
-            video_id_match = re.search(r'(?:v=|\/|shorts\/)([0-9A-Za-z_-]{11})', url)
-            if video_id_match:
-                video_id = video_id_match.group(1)
-                res = requests.get(api_url, headers=headers, params={"videoId": video_id}, timeout=10)
-                if res.status_code == 200:
-                    data = res.json()
-                    download_link = None
-                    if is_audio:
-                        audios = data.get("audios", {}).get("items", [])
-                        if audios: 
-                            download_link = audios[0].get("url")
-                    else:
-                        videos = data.get("videos", {}).get("items", [])
-                        if videos: 
-                            download_link = videos[0].get("url")
+    video_id_match = re.search(r'(?:v=|\/|shorts\/)([0-9A-Za-z_-]{11})', url)
+    if not video_id_match: 
+        return None
+    video_id = video_id_match.group(1)
 
-                    if download_link:
-                        ext = "mp3" if is_audio else "mp4"
-                        file_path = f"{filename}.{ext}"
-                        r = requests.get(download_link, stream=True, timeout=120)
-                        if r.status_code == 200:
-                            with open(file_path, 'wb') as f:
-                                for chunk in r.iter_content(chunk_size=32768):
-                                    f.write(chunk)
-                            if os.path.exists(file_path) and os.path.getsize(file_path) > 5000:
-                                return file_path
-        except Exception as e:
-            print(f"YT RapidAPI Error: {e}")
-
-    # محاولة ثانية عبر خدمة عامة مجانية ممتازة لتخطي الحظر
     try:
-        free_api_url = f"https://p.oceansaver.in/ajax/download.php?url={url}&format={'mp3' if is_audio else '720'}"
-        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0"}
-        r = requests.get(free_api_url, headers=headers, timeout=15)
-        if r.status_code == 200:
-            res_json = r.json()
-            if res_json.get("success"):
-                job_id = res_json.get("id")
-                progress_url = f"https://p.oceansaver.in/ajax/progress.php?id={job_id}"
-                for _ in range(15):
-                    time.sleep(3)
-                    prog_res = requests.get(progress_url, headers=headers, timeout=10)
-                    if prog_res.status_code == 200:
-                        prog_data = prog_res.json()
-                        if prog_data.get("success") and prog_data.get("progress") == 1000:
-                            dl_url = prog_data.get("download_url")
-                            if dl_url:
-                                ext = "mp3" if is_audio else "mp4"
-                                file_path = f"{filename}.{ext}"
-                                file_data = requests.get(dl_url, stream=True, timeout=60)
-                                if file_data.status_code == 200:
-                                    with open(file_path, 'wb') as f:
-                                        for chunk in file_data.iter_content(chunk_size=32768):
-                                            f.write(chunk)
-                                    if os.path.exists(file_path) and os.path.getsize(file_path) > 5000:
-                                        return file_path
+        res = requests.get(api_url, headers=headers, params={"videoId": video_id}, timeout=10)
+        if res.status_code == 200:
+            data = res.json()
+            download_link = None
+            if is_audio:
+                audios = data.get("audios", {}).get("items", [])
+                if audios: 
+                    download_link = audios[0].get("url")
+            else:
+                videos = data.get("videos", {}).get("items", [])
+                if videos: 
+                    download_link = videos[0].get("url")
+
+            if download_link:
+                r = requests.get(download_link, stream=True, timeout=120)
+                if r.status_code == 200:
+                    with open(file_path, 'wb') as f:
+                        for chunk in r.iter_content(chunk_size=32768):
+                            f.write(chunk)
+                    return file_path
     except Exception as e:
-        print(f"YT Free API Fallback Error: {e}")
-
-    # محاولة أخيرة عبر yt-dlp المحدث مع خيارات تخطي الحظر الشهيرة
-    try:
-        ydl_opts = {
-            'outtmpl': f'{filename}.%(ext)s',
-            'quiet': True,
-            'no_warnings': True,
-            'nocheckcertificate': True,
-            'geo_bypass': True,
-            'format': 'bestaudio/best' if is_audio else 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
-            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-        }
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            if 'entries' in info and len(info['entries']) > 0: 
-                info = info['entries'][0]
-            filename_actual = ydl.prepare_filename(info)
-            if os.path.exists(filename_actual): 
-                return filename_actual
-
-            base = os.path.splitext(filename_actual)[0]
-            for ext in ['.mp4', '.mkv', '.webm', '.mp3', '.m4a']:
-                if os.path.exists(base + ext): 
-                    return base + ext
-    except Exception as e:
-        print(f"yt-dlp error: {e}")
-
+        print(f"API Download Error: {e}")
     return None
 
 def download_instagram_with_user_api(url):
@@ -397,11 +342,13 @@ def download_pinterest_fixed(url):
         res = requests.get(url, headers=headers, allow_redirects=True, timeout=15)
         html_content = res.text
         
+        # استخراج رابط الفيديو المباشر من الـ Meta Tags أو الـ JSON داخل الصفحة بنجاح تامة
         video_url = None
         match = re.search(r'<meta property="og:video" content="([^"]+)"', html_content)
         if match:
             video_url = match.group(1).replace('&amp;', '&').replace(r'\u0026', '&')
         else:
+            # طريقة بحث بديلة عن روابط الـ mp4 داخل الصفحة
             mp4_matches = re.findall(r'(https?://[^"\s]+\.mp4[^"\s]*)', html_content)
             if mp4_matches:
                 video_url = mp4_matches[0].replace('&amp;', '&').replace(r'\u0026', '&')
@@ -417,6 +364,7 @@ def download_pinterest_fixed(url):
     except Exception as e:
         print(f"Pinterest fixed error: {e}")
 
+    # محاولة احتياطية ثانية عبر yt-dlp المبسط بدون قيود صيغ
     try:
         ydl_opts = {
             'outtmpl': filename,
@@ -437,6 +385,59 @@ def download_pinterest_fixed(url):
 
     return None
 
+
+def download_youtube_ytdlp(url, is_audio, quality="best"):
+    """تنزيل يوتيوب عبر yt-dlp مباشرةً كـ fallback"""
+    filename = f"dl_yt_{int(time.time())}_{random.randint(1000,9999)}"
+    try:
+        if is_audio:
+            ydl_opts = {
+                'outtmpl': f'{filename}.%(ext)s',
+                'quiet': True,
+                'no_warnings': True,
+                'nocheckcertificate': True,
+                'format': 'bestaudio/best',
+                'postprocessors': [{
+                    'key': 'FFmpegExtractAudio',
+                    'preferredcodec': 'mp3',
+                    'preferredquality': '320',
+                }],
+                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+            }
+        else:
+            fmt = 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best'
+            if quality == "360":
+                fmt = 'bestvideo[height<=360][ext=mp4]+bestaudio[ext=m4a]/best[height<=360]'
+            elif quality == "720":
+                fmt = 'bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720]'
+            elif quality == "1080":
+                fmt = 'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080]'
+            ydl_opts = {
+                'outtmpl': f'{filename}.%(ext)s',
+                'quiet': True,
+                'no_warnings': True,
+                'nocheckcertificate': True,
+                'format': fmt,
+                'merge_output_format': 'mp4',
+                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+            }
+
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            if info:
+                actual_file = ydl.prepare_filename(info)
+                # Check with common extensions
+                if os.path.exists(actual_file) and os.path.getsize(actual_file) > 5000:
+                    return actual_file
+                base = os.path.splitext(actual_file)[0]
+                for ext in ['.mp3', '.mp4', '.mkv', '.webm', '.m4a']:
+                    candidate = base + ext
+                    if os.path.exists(candidate) and os.path.getsize(candidate) > 5000:
+                        return candidate
+    except Exception as e:
+        print(f"YouTube yt-dlp error: {e}")
+    return None
+
 def download_media_direct(url, is_audio, quality="best"):
     if "instagram.com" in url or "instagr.am" in url:
         ig_file = download_instagram_with_user_api(url)
@@ -444,8 +445,12 @@ def download_media_direct(url, is_audio, quality="best"):
             return ig_file
 
     if "youtube.com" in url or "youtu.be" in url:
-        yt_file = download_youtube_fixed(url, is_audio)
-        if yt_file and os.path.exists(yt_file): 
+        yt_file = download_youtube_rapidapi(url, is_audio)
+        if yt_file and os.path.exists(yt_file):
+            return yt_file
+        # Fallback: yt-dlp directly for YouTube
+        yt_file = download_youtube_ytdlp(url, is_audio, quality)
+        if yt_file and os.path.exists(yt_file):
             return yt_file
 
     if "pin.it" in url or "pinterest.com" in url:
@@ -454,15 +459,19 @@ def download_media_direct(url, is_audio, quality="best"):
             return pin_file
 
     filename = f"dl_{int(time.time())}_{random.randint(1000,9999)}"
+    
     ydl_opts = {
         'outtmpl': f'{filename}.%(ext)s',
         'quiet': True,
         'no_warnings': True,
         'nocheckcertificate': True,
         'geo_bypass': True,
-        'format': 'bestaudio' if is_audio else 'best',
+        'format': 'best',
         'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
     }
+
+    if is_audio:
+        ydl_opts['format'] = 'bestaudio'
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -478,7 +487,7 @@ def download_media_direct(url, is_audio, quality="best"):
                 if os.path.exists(base + ext): 
                     return base + ext
     except Exception as e:
-        print(f"General yt-dlp error: {e}")
+        print(f"yt-dlp error: {e}")
     return None
 
 async def process_media_download(context: ContextTypes.DEFAULT_TYPE, chat_id: int, url: str, is_audio: bool, quality: str = "best"):
@@ -546,3 +555,7 @@ def get_prayer_times_jaafari(city_en):
     except Exception as e:
         print(f"Prayer API Error: {e}")
     return None
+
+def recognize_song_audd(audio_bytes):
+    try:
+        data = {'api_token': 'test'
