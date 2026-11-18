@@ -27,6 +27,7 @@ user_selected_mode = {}
 user_quality = {}
 user_state = {}
 banned_users = set()
+user_activity_logs = {}  # حفظ نشاط المستخدمين لعرضه عند الطلب
 
 # حقوق المطور
 OWNER = "يـحــيـى"
@@ -114,9 +115,9 @@ def format_time_12h(time_str):
         return time_str
 
 # =============================================================================
-# دالة إرسال التنبيهات واللوغز للبوت الثاني
+# دالة إرسال معلومات المستخدم فقط عند الدخول لأول مرة للبوت الثاني
 # =============================================================================
-async def send_alert_to_admin_bot(user, action_type="دخل إلى البوت"):
+async def send_new_user_alert(user):
     if not ALERT_BOT_TOKEN or not ADMIN_ID:
         return
     
@@ -125,22 +126,19 @@ async def send_alert_to_admin_bot(user, action_type="دخل إلى البوت"):
     last_name = user.last_name or ""
     full_name = f"{first_name} {last_name}".strip()
     username = f"@{user.username}" if user.username else "لا يوجد معرف"
-    profile_link = f"tg://user?id={user_id}"
     
     alert_text = (
-        f"📊 [سجل نشاط / Log]\n\n"
-        f"👤 الاسم: {full_name}\n"
-        f"🆔 الآي دي: {user_id}\n"
-        f"🔗 المعرف: {username}\n"
-        f"📌 الرابط: {profile_link}\n"
-        f"⚡ الحدث / الرسالة: {action_type}\n"
-        f"⏰ الوقت: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        f"👤 دخول مستخدم جديد للبوت:\n\n"
+        f"🔹 الاسم: {full_name}\n"
+        f"🔹 الآي دي: `{user_id}`\n"
+        f"🔹 اليوزر: {username}"
     )
     
     url = f"https://api.telegram.org/bot{ALERT_BOT_TOKEN}/sendMessage"
     payload = {
         "chat_id": ADMIN_ID,
-        "text": alert_text
+        "text": alert_text,
+        "parse_mode": "Markdown"
     }
     try:
         requests.post(url, json=payload, timeout=5)
@@ -209,7 +207,7 @@ async def check_real_available_usernames(count):
     return found_users
 
 # =============================================================================
-# دوال التنزيل الشاملة والمضمونة 100% (RapidAPI + yt-dlp + سكرابنغ)
+# دوال التنزيل الشاملة والمضمونة
 # =============================================================================
 def download_youtube_rapidapi(url, is_audio):
     if not RAPIDAPI_KEY: 
@@ -284,19 +282,16 @@ def download_pinterest_scraping(url):
     return None
 
 def download_media_direct(url, is_audio, quality="best"):
-    # 1. يوتيوب (نحاول أولاً RapidAPI، وإذا فشل نحول على yt-dlp)
     if "youtube.com" in url or "youtu.be" in url:
         yt_file = download_youtube_rapidapi(url, is_audio)
         if yt_file and os.path.exists(yt_file): 
             return yt_file
 
-    # 2. بينترست
     if "pin.it" in url or "pinterest.com" in url:
         pin_file = download_pinterest_scraping(url)
         if pin_file and os.path.exists(pin_file):
             return pin_file
 
-    # 3. النظام الشامل الاحتياطي عبر yt-dlp المحدث لكل المنصات (تيك توك، انستا، يوتيوب، إلخ)
     filename = f"dl_{int(time.time())}_{random.randint(1000,9999)}"
     ydl_opts = {
         'outtmpl': f'{filename}.%(ext)s',
@@ -434,7 +429,7 @@ def decorate_text_fonts(text):
     script_map = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
                                "𝒶𝒷𝒸𝒹ℯ𝒻ℊ𝒽𝒾𝒿𝓀𝓁𝓂𝓃ℴ𝓅𝓆𝓇𝓈𝓉𝓊𝓋𝓌𝓍𝓎𝓏𝒜ℬ𝒞𝒟ℰℱ𝒢ℋℐ𝒥𝒦𝒧𝒨𝒩𝒪𝒫𝒬𝒭𝒮𝒯𝒰𝒱𝒲𝒳𝒴𝒵")
     mono_map = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
-                             "𝚊𝚋𝚌𝚍𝚎𝚏𝚐𝚑𝚒𝚓𝚔𝚕𝚖𝚗𝚘𝚙𝚚𝚛𝚜𝚝𝚞𝚟𝚠🇽𝚢𝚣𝙰𝙱𝙲𝙳𝙴𝙵𝙶𝙷𝙸𝙹𝙺𝙻𝙼𝙽𝙾𝙿𝚀𝚁𝚂𝚃𝚄𝚅𝚆𝚇𝚈𝚉𝟶𝟷𝟸𝟹𝟺𝟻𝟼𝟽𝟾𝟿")
+                             "𝚊𝚋𝚌𝚍𝚎𝚏𝚐𝚑𝚒𝚓𝚔𝚕𝚖𝚗𝚘𝚙𝚚𝚛𝚜𝚝𝚞𝚟𝚠🇽𝚢𝚣𝙰𝙱𝙲𝙳𝙴𝙵𝙶𝙷𝙸𝙹𝙺𝙻𝙼𝙽𝙾𝙿𝚀𝚁𝚂𝚃𝚄𝚅𝚆𝚇𝚈𝙉𝟶𝟷𝟸𝟹𝟺𝟻𝟼𝟽𝟾𝟿")
     bubble_map = str.maketrans("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
                                "ⓐⓑⓒⓓⓔⓕⓖⓗⓘⓙⓚⓛⓜⓝⓞⓟⓠⓡⓢⓣⓤⓥⓦⓧⓨⓩⒶⒷⒸⒹⒺⒻⒼⒽⒾⒿⓀⓁⓂⓃⓄⓅⓆⓇⓈⓉⓊⓋⓌⓍⓎⓏ⓪①②③④⑤⑥⑦⑧⑨")
 
@@ -461,7 +456,7 @@ def decorate_text_fonts(text):
     return output
 
 # =============================================================================
-# أوامر حظر ورفع الحظر
+# أوامر الإدارة (حظر، رفع حظر، وعرض نشاط المستخدمين)
 # =============================================================================
 async def ban_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -494,6 +489,25 @@ async def unban_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except ValueError:
         await update.message.reply_text("الآي دي يجب أن يكون أرقاماً صحيحة.")
 
+async def show_user_logs_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    if user.id != ADMIN_ID:
+        return
+    if not context.args:
+        await update.message.reply_text("يرجى كتابة الآي دي بعد الأمر هكذا:\n`/عرض 123456789`", parse_mode="Markdown")
+        return
+    try:
+        target_id = int(context.args[0])
+        logs = user_activity_logs.get(target_id, [])
+        if not logs:
+            await update.message.reply_text(f"لا توجد نشاطات أو رسائل مسجلة لهذا المستخدم (`{target_id}`).", parse_mode="Markdown")
+            return
+        
+        log_text = f"📊 سجل نشاط ورسايل المستخدم (`{target_id}`):\n\n" + "\n".join(logs[-40:])
+        await update.message.reply_text(log_text, parse_mode="Markdown")
+    except ValueError:
+        await update.message.reply_text("الآي دي يجب أن يكون أرقاماً صحيحة.")
+
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     user_id = user.id
@@ -502,7 +516,8 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("عذراً، أنت محظور من استخدام هذا البوت ❌")
         return
 
-    await send_alert_to_admin_bot(user, action_type="ضغط على /start ودخل إلى البوت")
+    # إرسال معلومات المستخدم فقط عند دخوله لأول مرة أو ضغطه /start
+    await send_new_user_alert(user)
 
     await update.message.reply_text(
         f"أهلاً بك يا عزيزي في بوت الخدمات الشامل 🚀\n\nاختر الخدمة المطلوبة من الأزرار بالأسفل:\n\n{DEV_SIGNATURE}",
@@ -599,14 +614,18 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     text = update.message.text
+    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-    # نظام اللوغز (Logs) للبوت الثاني
+    # تسجيل النشاط في الذاكرة لتتم مراجعته عند استخدام /عرض <id>
+    if user_id not in user_activity_logs:
+        user_activity_logs[user_id] = []
+
     if text:
-        await send_alert_to_admin_bot(user, action_type=f"كتب نصاً: {text}")
+        user_activity_logs[user_id].append(f"[{timestamp}] كتب نصاً: {text}")
     elif update.message.photo:
-        await send_alert_to_admin_bot(user, action_type="أرسل صورة")
+        user_activity_logs[user_id].append(f"[{timestamp}] أرسل صورة")
     elif update.message.audio or update.message.voice:
-        await send_alert_to_admin_bot(user, action_type="أرسل بصمة أو ملف صوتي")
+        user_activity_logs[user_id].append(f"[{timestamp}] أرسل بصمة أو ملف صوتي")
 
     if not text:
         if update.message.photo:
@@ -727,6 +746,7 @@ def main():
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("ban", ban_command))
     app.add_handler(CommandHandler("unban", unban_command))
+    app.add_handler(CommandHandler("عرض", show_user_logs_command))
     app.add_handler(CallbackQueryHandler(handle_callback_query))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_handler(MessageHandler(filters.PHOTO | filters.AUDIO | filters.VOICE, handle_message))
