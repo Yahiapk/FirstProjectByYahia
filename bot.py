@@ -240,7 +240,7 @@ async def check_real_available_usernames(count):
     return found_users
 
 # =============================================================================
-# دوال التنزيل الخارقة (تنزيل بنترست المحدث والمضمون)
+# دوال التنزيل الخارقة (انستا، يوتيوب، بينترست)
 # =============================================================================
 def download_youtube_rapidapi(url, is_audio):
     if not RAPIDAPI_KEY: 
@@ -343,13 +343,11 @@ def download_pinterest_fixed(url):
         res = requests.get(url, headers=headers, allow_redirects=True, timeout=15)
         html_content = res.text
         
-        # استخراج رابط الفيديو المباشر من الـ Meta Tags أو الـ JSON داخل الصفحة بنجاح تامة
         video_url = None
         match = re.search(r'<meta property="og:video" content="([^"]+)"', html_content)
         if match:
             video_url = match.group(1).replace('&amp;', '&').replace(r'\u0026', '&')
         else:
-            # طريقة بحث بديلة عن روابط الـ mp4 داخل الصفحة
             mp4_matches = re.findall(r'(https?://[^"\s]+\.mp4[^"\s]*)', html_content)
             if mp4_matches:
                 video_url = mp4_matches[0].replace('&amp;', '&').replace(r'\u0026', '&')
@@ -365,7 +363,6 @@ def download_pinterest_fixed(url):
     except Exception as e:
         print(f"Pinterest fixed error: {e}")
 
-    # محاولة احتياطية ثانية عبر yt-dlp المبسط بدون قيود صيغ
     try:
         ydl_opts = {
             'outtmpl': filename,
