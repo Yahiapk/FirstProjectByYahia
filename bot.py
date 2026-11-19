@@ -284,7 +284,8 @@ def download_youtube_rapidapi(url, is_audio):
 def download_instagram_with_user_api(url):
     filename = f"dl_ig_{int(time.time())}_{random.randint(1000,9999)}.mp4"
     api_key = INSTAGRAM_API_KEY
-    
+
+    # محاولة 1: RapidAPI الأساسي
     try:
         api_url = "https://instagram-downloader-download-instagram-videos1.p.rapidapi.com/dl"
         headers = {
@@ -298,9 +299,8 @@ def download_instagram_with_user_api(url):
             video_url = res_data.get("video_url") or res_data.get("link") or res_data.get("url")
             if not video_url and "data" in res_data:
                 video_url = res_data["data"].get("url") or res_data["data"].get("video_url")
-
             if video_url:
-                r = requests.get(video_url, stream=True, timeout=30)
+                r = requests.get(video_url, stream=True, timeout=60)
                 if r.status_code == 200:
                     with open(filename, 'wb') as f:
                         for chunk in r.iter_content(chunk_size=32768):
@@ -310,6 +310,7 @@ def download_instagram_with_user_api(url):
     except Exception as e:
         print(f"IG User API Error: {e}")
 
+    # محاولة 2: API مجاني بديل
     try:
         free_api = f"https://rahad-all-downloader.vercel.app/instagram?url={url}"
         res = requests.get(free_api, timeout=15)
@@ -317,7 +318,7 @@ def download_instagram_with_user_api(url):
             data = res.json()
             video_url = data.get("result") or data.get("url") or data.get("download_url")
             if video_url:
-                r = requests.get(video_url, stream=True, timeout=30)
+                r = requests.get(video_url, stream=True, timeout=60)
                 if r.status_code == 200:
                     with open(filename, 'wb') as f:
                         for chunk in r.iter_content(chunk_size=32768):
@@ -326,6 +327,36 @@ def download_instagram_with_user_api(url):
                         return filename
     except Exception as e:
         print(f"IG Free API Fallback Error: {e}")
+
+    # محاولة 3: yt-dlp مباشرةً كـ fallback نهائي
+    try:
+        ydl_opts = {
+            'outtmpl': f'{filename}',
+            'quiet': True,
+            'no_warnings': True,
+            'nocheckcertificate': True,
+            'geo_bypass': True,
+            'format': 'best[ext=mp4]/best',
+            'merge_output_format': 'mp4',
+            'user_agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+            'http_headers': {
+                'Referer': 'https://www.instagram.com/',
+                'Origin': 'https://www.instagram.com',
+            },
+        }
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            if info:
+                actual_file = ydl.prepare_filename(info)
+                if os.path.exists(actual_file) and os.path.getsize(actual_file) > 5000:
+                    return actual_file
+                base = os.path.splitext(actual_file)[0]
+                for ext in ['.mp4', '.mkv', '.webm', '.m4a']:
+                    candidate = base + ext
+                    if os.path.exists(candidate) and os.path.getsize(candidate) > 5000:
+                        return candidate
+    except Exception as e:
+        print(f"IG yt-dlp fallback error: {e}")
 
     return None
 
