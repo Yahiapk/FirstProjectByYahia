@@ -417,8 +417,81 @@ def download_pinterest_fixed(url):
     return None
 
 def download_youtube_ytdlp(url, is_audio, quality="best"):
-    """تنزيل يوتيوب عبر yt-dlp مباشرةً كـ fallback"""
+    """تنزيل يوتيوب — محاولات متعددة بدون cookies"""
     filename = f"dl_yt_{int(time.time())}_{random.randint(1000,9999)}"
+
+    # استخراج video_id
+    video_id_match = re.search(r'(?:v=|\/|shorts\/)([0-9A-Za-z_-]{11})', url)
+    video_id = video_id_match.group(1) if video_id_match else None
+
+    # محاولة 1: y2mate API مجاني
+    if video_id:
+        try:
+            api_url = f"https://yt1s.com/api/ajaxSearch/index"
+            resp = requests.post(api_url, data={"q": url, "vt": "home"}, timeout=10)
+            if resp.status_code == 200:
+                data = resp.json()
+                links = data.get("links", {})
+                if is_audio:
+                    mp3_links = links.get("mp3", {})
+                    for k, v in mp3_links.items():
+                        dl_url = v.get("url") or v.get("dlink")
+                        if dl_url:
+                            r = requests.get(dl_url, stream=True, timeout=60)
+                            if r.status_code == 200:
+                                fp = f"{filename}.mp3"
+                                with open(fp, 'wb') as f:
+                                    for chunk in r.iter_content(chunk_size=32768):
+                                        f.write(chunk)
+                                if os.path.exists(fp) and os.path.getsize(fp) > 5000:
+                                    return fp
+                else:
+                    mp4_links = links.get("mp4", {})
+                    for k, v in mp4_links.items():
+                        dl_url = v.get("url") or v.get("dlink")
+                        if dl_url:
+                            r = requests.get(dl_url, stream=True, timeout=60)
+                            if r.status_code == 200:
+                                fp = f"{filename}.mp4"
+                                with open(fp, 'wb') as f:
+                                    for chunk in r.iter_content(chunk_size=32768):
+                                        f.write(chunk)
+                                if os.path.exists(fp) and os.path.getsize(fp) > 5000:
+                                    return fp
+        except Exception as e:
+            print(f"yt1s API error: {e}")
+
+    # محاولة 2: cobalt.tools API
+    if video_id:
+        try:
+            cobalt_url = "https://api.cobalt.tools/api/json"
+            headers = {"Accept": "application/json", "Content-Type": "application/json"}
+            payload = {
+                "url": url,
+                "vCodec": "h264",
+                "vQuality": quality if quality in ["360", "720", "1080"] else "720",
+                "aFormat": "mp3",
+                "isAudioOnly": is_audio,
+                "disableMetadata": True
+            }
+            resp = requests.post(cobalt_url, json=payload, headers=headers, timeout=15)
+            if resp.status_code == 200:
+                data = resp.json()
+                dl_url = data.get("url")
+                if dl_url:
+                    ext = "mp3" if is_audio else "mp4"
+                    fp = f"{filename}.{ext}"
+                    r = requests.get(dl_url, stream=True, timeout=120)
+                    if r.status_code == 200:
+                        with open(fp, 'wb') as f:
+                            for chunk in r.iter_content(chunk_size=32768):
+                                f.write(chunk)
+                        if os.path.exists(fp) and os.path.getsize(fp) > 5000:
+                            return fp
+        except Exception as e:
+            print(f"cobalt API error: {e}")
+
+    # محاولة 3: نظام yt-dlp مع extractor_args لتجاوز bot check
     try:
         if is_audio:
             ydl_opts = {
@@ -430,9 +503,10 @@ def download_youtube_ytdlp(url, is_audio, quality="best"):
                 'postprocessors': [{
                     'key': 'FFmpegExtractAudio',
                     'preferredcodec': 'mp3',
-                    'preferredquality': '320',
+                    'preferredquality': '192',
                 }],
-                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+                'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
+                'user_agent': 'com.google.android.youtube/17.36.4 (Linux; U; Android 12; GB) gzip',
             }
         else:
             fmt = 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best'
@@ -440,8 +514,6 @@ def download_youtube_ytdlp(url, is_audio, quality="best"):
                 fmt = 'bestvideo[height<=360][ext=mp4]+bestaudio[ext=m4a]/best[height<=360]'
             elif quality == "720":
                 fmt = 'bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720]'
-            elif quality == "1080":
-                fmt = 'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080]'
             ydl_opts = {
                 'outtmpl': f'{filename}.%(ext)s',
                 'quiet': True,
@@ -449,7 +521,8 @@ def download_youtube_ytdlp(url, is_audio, quality="best"):
                 'nocheckcertificate': True,
                 'format': fmt,
                 'merge_output_format': 'mp4',
-                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+                'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
+                'user_agent': 'com.google.android.youtube/17.36.4 (Linux; U; Android 12; GB) gzip',
             }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
